@@ -1242,6 +1242,8 @@ class WorkoutForegroundService : Service() {
         try {
             val dir = getExternalFilesDir(null)
             if (dir != null) {
+                cleanupOldGpxFiles(dir)
+                
                 val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
                 gpxFile = File(dir, "stayer_track_$timestamp.gpx")
                 gpxWriter = FileWriter(gpxFile, false)
@@ -1257,6 +1259,23 @@ class WorkoutForegroundService : Service() {
         } catch (e: Exception) {
             e.printStackTrace()
             gpxWriter = null
+        }
+    }
+
+    private fun cleanupOldGpxFiles(dir: File) {
+        try {
+            val files = dir.listFiles { _, name -> name.startsWith("stayer_track_") && name.endsWith(".gpx") }
+            if (files != null && files.size >= 30) {
+                // Сортируем по дате изменения (старые первыми)
+                files.sortBy { it.lastModified() }
+                // Удаляем самые старые, чтобы общее количество стало 29 (оставляем место для нового)
+                val filesToDelete = files.size - 29
+                for (i in 0 until filesToDelete) {
+                    files[i].delete()
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
