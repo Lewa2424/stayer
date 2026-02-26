@@ -443,8 +443,21 @@ class MainActivity : AppCompatActivity() {
                 val avgNoWarmup = runtimePrefs.getInt("INTERVAL_AVG_NO_WARMUP", -1).takeIf { it > 0 }
                 val avgTotal = runtimePrefs.getInt("INTERVAL_AVG_TOTAL", -1).takeIf { it > 0 }
 
-                // Определяем режим: если есть статистика, считаем интервальной
-                val mode = if (avgWork != null || avgRest != null) "interval" else "normal"
+                // Считываем цели
+                val goalsPrefs = getSharedPreferences("Goals", MODE_PRIVATE)
+                val targetDistanceKm = goalsPrefs.getFloat("TARGET_DISTANCE_KM", 0f).takeIf { it > 0f }
+                    ?: goalsPrefs.getString("TARGET_DISTANCE", "0")?.replace(',', '.')?.toFloatOrNull()?.takeIf { it > 0f }
+                val targetTimeSec = goalsPrefs.getInt("TARGET_TIME_SEC", 0).takeIf { it > 0 }
+                val workoutModeInt = goalsPrefs.getInt("WORKOUT_MODE", 0)
+
+                // Определяем фактический режим
+                // Выводим "interval" или "combo" если есть сохраненный режим, иначе фолбек по старой логике
+                val mode = when {
+                    workoutModeInt == 1 -> "interval"
+                    workoutModeInt == 2 -> "combined"
+                    avgWork != null || avgRest != null -> "interval"
+                    else -> "normal"
+                }
 
                 // Создаем запись в истории
                 val workoutHistory = WorkoutHistory(
@@ -454,6 +467,9 @@ class MainActivity : AppCompatActivity() {
                     speed = speed,
                     elapsedMs = actualElapsedTime,
                     workoutMode = mode,
+                    targetDistanceKm = targetDistanceKm,
+                    targetTimeSec = targetTimeSec,
+                    targetPaceSecPerKm = null,
                     avgPaceWorkSec = avgWork,
                     avgPaceRestSec = avgRest,
                     avgPaceWithoutWarmupSec = avgNoWarmup,

@@ -7,6 +7,9 @@ data class WorkoutHistory(
     val speed: Float,
     val elapsedMs: Long = 0L,
     val workoutMode: String = "normal",        // "normal" | "interval" | "combined"
+    val targetDistanceKm: Float? = null,
+    val targetTimeSec: Int? = null,
+    val targetPaceSecPerKm: Int? = null,
     val avgPaceWorkSec: Int? = null,           // средний темп фаз WORK (сек/км)
     val avgPaceRestSec: Int? = null,           // средний темп фаз REST (сек/км)
     val avgPaceWithoutWarmupSec: Int? = null,  // средний темп без разминки/заминки

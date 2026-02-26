@@ -1,12 +1,16 @@
 package com.example.stayer
 
 import android.content.Context
+import android.transition.AutoTransition
+import android.transition.TransitionManager
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageButton
+import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.appcompat.app.AlertDialog
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.edit
 import androidx.recyclerview.widget.RecyclerView
 import com.google.gson.Gson
@@ -46,44 +50,102 @@ class WorkoutHistoryAdapter(
         return WorkoutViewHolder(view)
     }
 
+    override fun onBindViewHolder(holder: WorkoutViewHolder, position: Int, payloads: MutableList<Any>) {
+        if (payloads.isNotEmpty() && payloads[0] == true) {
+            holder.bindExpandState()
+        } else {
+            super.onBindViewHolder(holder, position, payloads)
+        }
+    }
+
     override fun onBindViewHolder(holder: WorkoutViewHolder, position: Int) {
         val workout = workoutHistoryList[position]
         holder.bind(workout)
+        holder.bindExpandState()
     }
 
     override fun getItemCount(): Int {
         return workoutHistoryList.size
     }
 
+    private var recyclerView: RecyclerView? = null
+
+    override fun onAttachedToRecyclerView(recyclerView: RecyclerView) {
+        super.onAttachedToRecyclerView(recyclerView)
+        this.recyclerView = recyclerView
+    }
+
+    override fun onDetachedFromRecyclerView(recyclerView: RecyclerView) {
+        super.onDetachedFromRecyclerView(recyclerView)
+        this.recyclerView = null
+    }
+
     inner class WorkoutViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        // Layouts
+        private val headerLayout: ConstraintLayout = itemView.findViewById(R.id.history_header_layout)
+        private val detailsLayout: LinearLayout = itemView.findViewById(R.id.history_details_layout)
+
+        // Header Views
         private val dateTextView: TextView = itemView.findViewById(R.id.history_date)
-        private val distanceTextView: TextView = itemView.findViewById(R.id.history_distance)
-        private val timeTextView: TextView = itemView.findViewById(R.id.history_time)
-        private val paceTextView: TextView = itemView.findViewById(R.id.history_speed)
+        private val targetTextView: TextView = itemView.findViewById(R.id.history_target)
+        private val expandIcon: ImageView = itemView.findViewById(R.id.history_expand_icon)
         private val deleteButton: ImageButton = itemView.findViewById(R.id.history_delete)
 
-        private val modeIcon: android.widget.ImageView = itemView.findViewById(R.id.history_mode_icon)
+        // Details Views
+        private val actualDistanceText: TextView = itemView.findViewById(R.id.history_actual_distance)
+        private val actualTimeText: TextView = itemView.findViewById(R.id.history_actual_time)
+        private val actualPaceText: TextView = itemView.findViewById(R.id.history_actual_pace)
+        private val intervalStatsText: TextView = itemView.findViewById(R.id.history_interval_stats)
+
+        var isExpanded = false
+
+        fun bindExpandState() {
+            if (isExpanded) {
+                detailsLayout.visibility = View.VISIBLE
+                expandIcon.rotation = 180f
+            } else {
+                detailsLayout.visibility = View.GONE
+                expandIcon.rotation = 0f
+            }
+        }
 
         fun bind(workout: WorkoutHistory) {
-            // Устанавливаем иконку режима
-            if (workout.workoutMode == "interval" || workout.workoutMode == "combined") {
-                modeIcon.visibility = View.VISIBLE
-                modeIcon.setImageResource(android.R.drawable.ic_menu_sort_by_size) // Placeholder icon for intervals
-                
-                // Клик по всей строке для показа деталей
-                itemView.setOnClickListener {
-                    showIntervalDetails(workout)
+            // -- Header --
+            dateTextView.text = workout.date
+
+            // Format target text gracefully
+            val targetStr = when {
+                workout.targetDistanceKm != null -> String.format(Locale.getDefault(), "🎯 %.2f км", workout.targetDistanceKm)
+                workout.targetTimeSec != null -> {
+                    val m = workout.targetTimeSec / 60
+                    val s = workout.targetTimeSec % 60
+                    "🎯 %d:%02d".format(m, s)
                 }
+                else -> String.format(Locale.getDefault(), "🏃 %.2f км", workout.distance) // fallback logic for old
+            }
+            targetTextView.text = targetStr
+
+            // -- Details --
+            actualDistanceText.text = String.format(Locale.getDefault(), "🏃 %.2f км", workout.distance)
+            actualTimeText.text = "⏱ ${workout.time}"
+            actualPaceText.text = "⚡ ${formatPace(workout.elapsedMs, workout.distance)}"
+
+            // -- Interval Stats --
+            if ((workout.workoutMode == "interval" || workout.workoutMode == "combined") && workout.avgPaceWorkSec != null) {
+                intervalStatsText.visibility = View.VISIBLE
+                intervalStatsText.text = "📊 Работа: ${formatSecPerKm(workout.avgPaceWorkSec)} | 🚶‍♂️ Отдых: ${formatSecPerKm(workout.avgPaceRestSec)}"
             } else {
-                modeIcon.visibility = View.INVISIBLE
-                itemView.setOnClickListener(null)
+                intervalStatsText.visibility = View.GONE
             }
 
-            // Устанавливаем значения для каждого TextView
-            dateTextView.text = workout.date
-            distanceTextView.text = String.format(Locale.getDefault(), "%.2f км", workout.distance)
-            timeTextView.text = workout.time
-            paceTextView.text = formatPace(workout.elapsedMs, workout.distance)
+            // -- Click Listeners --
+            headerLayout.setOnClickListener {
+                isExpanded = !isExpanded
+                recyclerView?.let { rv ->
+                    TransitionManager.beginDelayedTransition(rv, AutoTransition().apply { duration = 200 })
+                }
+                notifyItemChanged(adapterPosition, true)
+            }
 
             deleteButton.setOnClickListener {
                 val position = adapterPosition
@@ -93,21 +155,6 @@ class WorkoutHistoryAdapter(
                     saveHistoryList(workoutHistoryList)
                 }
             }
-        }
-
-        private fun showIntervalDetails(workout: WorkoutHistory) {
-            val sb = StringBuilder()
-            sb.append("Средний темп по фазам:\n\n")
-            sb.append("• Работа: ${formatSecPerKm(workout.avgPaceWorkSec)}\n")
-            sb.append("• Отдых: ${formatSecPerKm(workout.avgPaceRestSec)}\n")
-            sb.append("• Без разминки/заминки: ${formatSecPerKm(workout.avgPaceWithoutWarmupSec)}\n")
-            sb.append("• Общий по тренировке: ${formatSecPerKm(workout.avgPaceTotalSec)}\n")
-
-            AlertDialog.Builder(context)
-                .setTitle("Детали тренировки")
-                .setMessage(sb.toString())
-                .setPositiveButton("OK", null)
-                .show()
         }
     }
 }
