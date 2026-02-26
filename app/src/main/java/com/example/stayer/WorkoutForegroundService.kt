@@ -9,6 +9,10 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.location.Location
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
@@ -28,6 +32,7 @@ import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.gson.Gson
+import com.example.stayer.engine.CadenceFallbackEngine
 import java.io.File
 import java.io.FileWriter
 import java.text.SimpleDateFormat
@@ -168,8 +173,35 @@ class WorkoutForegroundService : Service() {
     private var gpxWriter: FileWriter? = null
     private var gpxFile: File? = null
 
+    // Fallback Engine (Intelligent Steps Calibration)
+    private lateinit var fallbackEngine: CadenceFallbackEngine
+    private lateinit var sensorManager: SensorManager
+    private var stepSensor: Sensor? = null
+    private var stepsSinceLastTick = 0
+    private var lastTotalSteps = -1
+
+    private val stepListener = object : SensorEventListener {
+        override fun onSensorChanged(event: SensorEvent) {
+            val totalSteps = event.values[0].toInt()
+            if (lastTotalSteps == -1) {
+                lastTotalSteps = totalSteps
+                return
+            }
+            if (isRunning && !isPaused) {
+                stepsSinceLastTick += (totalSteps - lastTotalSteps)
+            }
+            lastTotalSteps = totalSteps
+        }
+
+        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+    }
+
     override fun onCreate() {
         super.onCreate()
+
+        fallbackEngine = CadenceFallbackEngine(this)
+        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        stepSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
 
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "WorkoutForegroundService::WakeLock")
@@ -247,6 +279,11 @@ class WorkoutForegroundService : Service() {
 
         persistState()
         startLocationUpdates()
+        
+        stepSensor?.let {
+            sensorManager.registerListener(stepListener, it, SensorManager.SENSOR_DELAY_UI)
+        }
+        
         startTicking()
         broadcastUpdate()
         updateNotification()
@@ -260,6 +297,7 @@ class WorkoutForegroundService : Service() {
         resetTrackState()
 
         stopLocationUpdates()
+        sensorManager.unregisterListener(stepListener)
         stopTicking()
         persistState()
         broadcastUpdate()
@@ -287,6 +325,10 @@ class WorkoutForegroundService : Service() {
         resetTrackState()
         closeGpxLog()
 
+        sensorManager.unregisterListener(stepListener)
+        lastTotalSteps = -1
+        stepsSinceLastTick = 0
+
         persistState()
         broadcastUpdate()
 
@@ -311,7 +353,15 @@ class WorkoutForegroundService : Service() {
         tickRunnable = object : Runnable {
             override fun run() {
                 if (isRunning && !isPaused) {
-                    // Таймер и нотификация должны обновляться независимо от частоты GPS-точек
+                    // 1. Process Cadence Fallback (Intelligent Steps)
+                    val stepsToProcess = stepsSinceLastTick
+                    stepsSinceLastTick = 0
+                    val fallbackDistM = fallbackEngine.processTick(stepsToProcess)
+                    if (fallbackDistM > 0.0) {
+                        totalDistanceKm += (fallbackDistM.toFloat() / 1000f)
+                    }
+
+                    // 2. Таймер и нотификация должны обновляться независимо от частоты GPS-точек
                     broadcastUpdate()
                     updateNotification()
                     handleIntervalTick()
@@ -486,15 +536,21 @@ class WorkoutForegroundService : Service() {
         val rejectReason = acceptPointReason(prev, location)
         logGpxPoint(location, rejectReason)
 
-        if (rejectReason != null) return
+        if (rejectReason != null) {
+            fallbackEngine.processGpsRejected(rejectReason)
+            return
+        }
 
         lastAcceptedRawLocation = location
         val smoothed = smoother.addAndGetSmoothed(location)
         val prevSmoothed = lastSmoothedLocation
         if (prevSmoothed != null) {
-            val deltaM = prevSmoothed.distanceTo(smoothed)
-            if (deltaM > 0f) {
-                totalDistanceKm += (deltaM / 1000f)
+            val rawDeltaM = prevSmoothed.distanceTo(smoothed).toDouble()
+            if (rawDeltaM > 0.0) {
+                val acceptedDistM = fallbackEngine.processGpsAccepted(rawDeltaM)
+                if (acceptedDistM > 0.0) {
+                    totalDistanceKm += (acceptedDistM.toFloat() / 1000f)
+                }
             }
         }
         lastSmoothedLocation = smoothed
@@ -1229,6 +1285,7 @@ class WorkoutForegroundService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         stopLocationUpdates()
+        sensorManager.unregisterListener(stepListener)
         stopTicking()
         closeGpxLog()
         if (wakeLock.isHeld) wakeLock.release()
