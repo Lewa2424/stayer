@@ -603,7 +603,7 @@ class WorkoutForegroundService : Service() {
 
         // 2) дистанция
         val d = prev.distanceTo(cur)
-        if (d < 0.8f) return "Too close (${String.format("%.1f", d)}m)" // отсекаем дрожание
+        if (d < 0.5f) return "Too close (${String.format("%.1f", d)}m)" // отсекаем только "стояночный дрейф" (меньше полуметра)
 
         // 3) скорость
         val v = d / dtSec // m/s
