@@ -603,11 +603,11 @@ class WorkoutForegroundService : Service() {
 
         // 2) дистанция
         val d = prev.distanceTo(cur)
-        if (d < 3f) return "Too close (${String.format("%.1f", d)}m)" // отсекаем дрожание
+        if (d < 0.8f) return "Too close (${String.format("%.1f", d)}m)" // отсекаем дрожание
 
         // 3) скорость
         val v = d / dtSec // m/s
-        if (v < 0.5f) return "Too slow (${String.format("%.1f", v)}m/s)" // "стою/шум"
+        if (v < 0.3f) return "Too slow (${String.format("%.1f", v)}m/s)" // "стою/шум"
         if (v > 12.0f) return "Too fast (${String.format("%.1f", v)}m/s) (Teleport)" // "телепорт/глюк" (увеличено с 7.5 до 12.0 м/с для быстрых рывков GPS)
 
         // 4) дополнительный стоп-кран от больших прыжков
