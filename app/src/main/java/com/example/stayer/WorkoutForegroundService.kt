@@ -28,7 +28,12 @@ import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.gson.Gson
+import java.io.File
+import java.io.FileWriter
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -91,7 +96,8 @@ class WorkoutForegroundService : Service() {
     private var locationCallback: LocationCallback? = null
     private var lastAcceptedRawLocation: Location? = null
     private var lastSmoothedLocation: Location? = null
-    private val smoother = LocationSmoother(windowSize = 7)
+    // Уменьшено окно сглаживания с 7 до 3 для снижения эффекта "срезания углов" на поворотах
+    private val smoother = LocationSmoother(windowSize = 3)
 
     private val tickHandler = Handler(Looper.getMainLooper())
     private var tickRunnable: Runnable? = null
@@ -158,6 +164,10 @@ class WorkoutForegroundService : Service() {
     private var lastCheckpointProgress = com.example.stayer.debug.GlobalProgress.ON_TRACK
     private var emergencyCooldownUntilDistKm = 0.0
 
+    // GPX Logging state
+    private var gpxWriter: FileWriter? = null
+    private var gpxFile: File? = null
+
     override fun onCreate() {
         super.onCreate()
 
@@ -219,6 +229,10 @@ class WorkoutForegroundService : Service() {
             goalReached = false
             // При новом старте точку инициализируем с нуля, чтобы не было скачка
             resetTrackState()
+            
+            // Начинаем новый GPX лог
+            initGpxLog()
+
             // Load interval scenario on fresh start
             loadWorkoutModeAndScenario()
         } else if (isPaused) {
@@ -271,6 +285,7 @@ class WorkoutForegroundService : Service() {
         pacerPraiseAlternate = false
 
         resetTrackState()
+        closeGpxLog()
 
         persistState()
         broadcastUpdate()
@@ -462,12 +477,16 @@ class WorkoutForegroundService : Service() {
         val prev = lastAcceptedRawLocation
         if (prev == null) {
             lastAcceptedRawLocation = location
+            logGpxPoint(location, null)
             val smoothed = smoother.addAndGetSmoothed(location)
             lastSmoothedLocation = smoothed
             return
         }
 
-        if (!acceptPoint(prev, location)) return
+        val rejectReason = acceptPointReason(prev, location)
+        logGpxPoint(location, rejectReason)
+
+        if (rejectReason != null) return
 
         lastAcceptedRawLocation = location
         val smoothed = smoother.addAndGetSmoothed(location)
@@ -518,27 +537,31 @@ class WorkoutForegroundService : Service() {
         }
     }
 
-    private fun acceptPoint(prev: Location, cur: Location): Boolean {
+    private fun acceptPointReason(prev: Location, cur: Location): String? {
         val dtSec = ((cur.elapsedRealtimeNanos - prev.elapsedRealtimeNanos) / 1_000_000_000.0).toFloat()
-        if (dtSec <= 0.2f) return false
+        if (dtSec <= 0.2f) return "Too frequent (${String.format("%.2f", dtSec)}s)"
 
         // 1) точность
         val acc = if (cur.hasAccuracy()) cur.accuracy else Float.MAX_VALUE
-        if (acc > 15f) return false // 10–15м на практике; 15м мягче, меньше "провалов"
+        if (acc > 15f) return "Bad accuracy (${String.format("%.1f", acc)}m)" // 10–15м на практике; 15м мягче, меньше "провалов"
 
         // 2) дистанция
         val d = prev.distanceTo(cur)
-        if (d < 3f) return false // отсекаем дрожание
+        if (d < 3f) return "Too close (${String.format("%.1f", d)}m)" // отсекаем дрожание
 
         // 3) скорость
         val v = d / dtSec // m/s
-        if (v < 0.5f) return false // "стою/шум"
-        if (v > 7.5f) return false // "телепорт/глюк"
+        if (v < 0.5f) return "Too slow (${String.format("%.1f", v)}m/s)" // "стою/шум"
+        if (v > 12.0f) return "Too fast (${String.format("%.1f", v)}m/s) (Teleport)" // "телепорт/глюк" (увеличено с 7.5 до 12.0 м/с для быстрых рывков GPS)
 
         // 4) дополнительный стоп-кран от больших прыжков
-        if (d > 120f && dtSec < 10f) return false
+        if (d > 120f && dtSec < 10f) return "Jump (${String.format("%.1f", d)}m in ${String.format("%.1f", dtSec)}s)"
 
-        return true
+        return null
+    }
+
+    private fun acceptPoint(prev: Location, cur: Location): Boolean {
+        return acceptPointReason(prev, cur) == null
     }
 
     private class LocationSmoother(private val windowSize: Int) {
@@ -1207,10 +1230,75 @@ class WorkoutForegroundService : Service() {
         super.onDestroy()
         stopLocationUpdates()
         stopTicking()
+        closeGpxLog()
         if (wakeLock.isHeld) wakeLock.release()
         try {
             textToSpeech.shutdown()
         } catch (_: Exception) {
+        }
+    }
+
+    private fun initGpxLog() {
+        try {
+            val dir = getExternalFilesDir(null)
+            if (dir != null) {
+                val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+                gpxFile = File(dir, "stayer_track_$timestamp.gpx")
+                gpxWriter = FileWriter(gpxFile, false)
+                gpxWriter?.let { writer ->
+                    writer.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
+                    writer.write("<gpx version=\"1.1\" creator=\"Stayer\">\n")
+                    writer.write("  <trk>\n")
+                    writer.write("    <name>Stayer Workout $timestamp</name>\n")
+                    writer.write("    <trkseg>\n")
+                    writer.flush()
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            gpxWriter = null
+        }
+    }
+
+    private fun closeGpxLog() {
+        try {
+            gpxWriter?.let { writer ->
+                writer.write("    </trkseg>\n")
+                writer.write("  </trk>\n")
+                writer.write("</gpx>\n")
+                writer.flush()
+                writer.close()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        } finally {
+            gpxWriter = null
+            gpxFile = null
+        }
+    }
+
+    private fun logGpxPoint(location: Location, reason: String? = null) {
+        if (gpxWriter == null) return
+        try {
+            val df = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
+            df.timeZone = TimeZone.getTimeZone("UTC")
+            val timeStr = df.format(Date(location.time))
+
+            val builder = StringBuilder()
+            builder.append("      <trkpt lat=\"${location.latitude}\" lon=\"${location.longitude}\">\n")
+            if (location.hasAltitude()) builder.append("        <ele>${location.altitude}</ele>\n")
+            builder.append("        <time>$timeStr</time>\n")
+            if (reason != null) {
+                builder.append("        <desc>REJECTED: $reason. Speed: ${location.speed}, Acc: ${location.accuracy}</desc>\n")
+            } else {
+                builder.append("        <desc>ACCEPTED. Speed: ${location.speed}, Acc: ${location.accuracy}</desc>\n")
+            }
+            builder.append("      </trkpt>\n")
+
+            gpxWriter?.write(builder.toString())
+            gpxWriter?.flush()
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 }

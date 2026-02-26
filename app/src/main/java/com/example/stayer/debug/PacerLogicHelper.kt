@@ -49,6 +49,22 @@ object PacerLogicHelper {
     }
 
     /**
+     * Formats distance in km for conversational speech.
+     */
+    fun formatDistanceForSpeech(distKm: Double): String {
+        val dist10 = (distKm * 10).roundToInt()
+        if (dist10 % 10 == 0) {
+            val distInt = dist10 / 10
+            val suffix = getPlural(distInt, "километр", "километра", "километров")
+            return "$distInt $suffix"
+        } else {
+            val d = dist10 / 10
+            val frac = dist10 % 10
+            return "$d и $frac километра"
+        }
+    }
+
+    /**
      * Builds the full TTS prompt for the normal mode pacer.
      *
      * @param globalProgress    ON_TRACK / BEHIND / AHEAD based on finish prediction
@@ -183,7 +199,10 @@ object PacerLogicHelper {
             }
         }
 
-        return Pair(prompt.trim(), nextPraiseAlternate)
+        val distStr = formatDistanceForSpeech(currentDistKm)
+        val finalPrompt = "Дистанция $distStr. ${prompt.trim()}"
+
+        return Pair(finalPrompt, nextPraiseAlternate)
     }
 
     /**

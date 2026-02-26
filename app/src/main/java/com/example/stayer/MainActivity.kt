@@ -270,7 +270,9 @@ class MainActivity : AppCompatActivity() {
                 override fun onSensorChanged(event: SensorEvent) {
                     if (isTimerRunning) {
                         stepCount++
-                        stepDistance = (stepCount * 0.78f) / 1000 // Средняя длина шага 0.78 м, переводим в км
+                        // ВРЕМЕННО ОТКЛЮЧЕНО: Тестируем чистый GPS
+                        // stepDistance = (stepCount * 0.78f) / 1000 // Средняя длина шага 0.78 м, переводим в км
+                        stepDistance = 0.0f
                         uiStepDistanceKm = stepDistance
                     }
                 }
