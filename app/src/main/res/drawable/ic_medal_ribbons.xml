@@ -1,0 +1,41 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="140dp"
+    android:height="80dp"
+    android:viewportWidth="140"
+    android:viewportHeight="80">
+
+    <!-- Левая лента шеи (левый край фиолетовый, остальное перекрыто) -->
+    <path
+        android:pathData="M 10,0 L 50,0 L 75,70 L 55,78 Z"
+        android:fillColor="#6E4BAE" />
+        
+    <!-- Левая лента шеи (оранжевый центр) -->
+    <path
+        android:pathData="M 17,0 L 43,0 L 71.5,71 L 58.5,76 Z"
+        android:fillColor="#FF8600" />
+        
+    <!-- Правая лента шеи (задний фон, правый фиолетовый) -->
+    <path
+        android:pathData="M 130,0 L 90,0 L 65,70 L 85,78 Z"
+        android:fillColor="#5D3E96" />
+
+    <!-- Правая лента шеи (оранжевый центр) -->
+    <path
+        android:pathData="M 123,0 L 97,0 L 68.5,71 L 81.5,76 Z"
+        android:fillColor="#E67900" />
+
+    <!-- Тень от перекрытия лент -->
+    <path
+        android:pathData="M 65,70 L 71,58 L 75,70 Z"
+        android:fillColor="#3A245C" />
+        
+    <!-- Металлическое ушко крепления к медали (внешний контур) -->
+    <path
+        android:pathData="M 62,68 L 78,68 C 81,68 83,71 83,74 C 83,77 81,80 78,80 L 62,80 C 59,80 57,77 57,74 C 57,71 59,68 62,68 Z"
+        android:fillColor="#D1C4E9" />
+        
+    <!-- Отверстие в креплении -->
+    <path
+        android:pathData="M 64,71 L 76,71 C 77.5,71 79,72.5 79,74 C 79,75.5 77.5,77 76,77 L 64,77 C 62.5,77 61,75.5 61,74 C 61,72.5 62.5,71 64,71 Z"
+        android:fillColor="#5D3E96" />
+</vector>

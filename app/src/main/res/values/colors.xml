@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    
+    <!-- Soft UI Palette -->
+    <color name="soft_bg_top">#F1ECF8</color>
+    <color name="soft_bg_bottom">#F8F5FC</color>
+    <color name="soft_card_bg">#F5F1FA</color>
+    <color name="soft_accent_main">#6E4BAE</color>
+    <color name="soft_accent_light">#8C74C7</color>
+    <color name="soft_text_primary">#2F243D</color>
+    <color name="soft_text_secondary">#6F6480</color>
+    
+    <color name="medal_ring_dark">#5D3E96</color>
+    <color name="medal_inner_top">#9880D1</color>
+    <color name="medal_inner_bottom">#7755BD</color>
+    <color name="medal_shadow">#336E4BAE</color>
+</resources>

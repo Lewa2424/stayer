@@ -1,0 +1,6 @@
+<!-- rounded_button.xml -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <corners android:radius="60dp"/> <!-- Установи радиус закругления -->
+    <solid android:color="#ff8600"/> <!-- Цвет фона -->
+</shape>

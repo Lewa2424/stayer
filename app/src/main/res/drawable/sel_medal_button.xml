@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="#40FFFFFF"> <!-- Полупрозрачный белый ripple -->
+    <item android:id="@android:id/mask">
+        <!-- Маска для ripple эффекта, ограничивающая его кругом -->
+        <shape android:shape="oval">
+            <solid android:color="@android:color/white" />
+        </shape>
+    </item>
+    
+    <item android:state_pressed="true"
+          android:drawable="@drawable/bg_start_medal_pressed" />
+          
+    <item android:drawable="@drawable/bg_start_medal_normal" />
+</ripple>

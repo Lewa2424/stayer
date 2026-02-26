@@ -1,0 +1,443 @@
+﻿Initialized native services in: C:\Users\User\.gradle\native
+Initialized jansi services in: C:\Users\User\.gradle\native
+Found daemon DaemonInfo{pid=12080, address=[6937c51c-314a-4d02-a56e-eb19939b28bd port:3220, addresses:[/127.0.0.1]], state=Idle, lastBusy=1768337301498, context=DefaultDaemonContext[uid=75481be7-1ca2-4a0a-a134-abf8fb8995d9,javaHome=C:\Users\User\.antigravity\extensions\redhat.java-1.51.0-win32-x64\jre\21.0.9-win32-x86_64,javaVersion=21,javaVendor=Eclipse Adoptium,daemonRegistryDir=C:\Users\User\.gradle\daemon,pid=12080,idleTimeout=10800000,priority=NORMAL,applyInstrumentationAgent=true,nativeServicesMode=ENABLED,daemonOpts=-Xmx2048m,-Dfile.encoding=UTF-8,-Duser.country=RU,-Duser.language=ru,-Duser.variant]} however its context does not match the desired criteria.
+JVM is incompatible.
+Wanted: DaemonRequestContext{jvmCriteria=C:\Program Files\Java\jdk-17 (no JDK specified, using current Java home), daemonOpts=[-Xmx2048m, -Dfile.encoding=UTF-8, -Duser.country=RU, -Duser.language=ru, -Duser.variant], applyInstrumentationAgent=true, nativeServicesMode=ENABLED, priority=NORMAL}
+Actual: DefaultDaemonContext[uid=75481be7-1ca2-4a0a-a134-abf8fb8995d9,javaHome=C:\Users\User\.antigravity\extensions\redhat.java-1.51.0-win32-x64\jre\21.0.9-win32-x86_64,javaVersion=21,javaVendor=Eclipse Adoptium,daemonRegistryDir=C:\Users\User\.gradle\daemon,pid=12080,idleTimeout=10800000,priority=NORMAL,applyInstrumentationAgent=true,nativeServicesMode=ENABLED,daemonOpts=-Xmx2048m,-Dfile.encoding=UTF-8,-Duser.country=RU,-Duser.language=ru,-Duser.variant]
+
+  Looking for a different daemon...
+Found daemon DaemonInfo{pid=4996, address=[04bca996-9b8d-4e00-a356-c55cd10c85ef port:15896, addresses:[/127.0.0.1]], state=Idle, lastBusy=1772031705295, context=DefaultDaemonContext[uid=bd4abe6c-33e0-4023-92e1-11e96ae89c34,javaHome=D:\AndroidStudio\android-studio-2025.1.2.12\jbr,javaVersion=21,javaVendor=JetBrains s.r.o.,daemonRegistryDir=C:\Users\User\.gradle\daemon,pid=4996,idleTimeout=10800000,priority=NORMAL,applyInstrumentationAgent=true,nativeServicesMode=ENABLED,daemonOpts=-Xmx2048m,-Dfile.encoding=UTF-8,-Duser.country=RU,-Duser.language=ru,-Duser.variant]} however its context does not match the desired criteria.
+JVM is incompatible.
+Wanted: DaemonRequestContext{jvmCriteria=C:\Program Files\Java\jdk-17 (no JDK specified, using current Java home), daemonOpts=[-Xmx2048m, -Dfile.encoding=UTF-8, -Duser.country=RU, -Duser.language=ru, -Duser.variant], applyInstrumentationAgent=true, nativeServicesMode=ENABLED, priority=NORMAL}
+Actual: DefaultDaemonContext[uid=bd4abe6c-33e0-4023-92e1-11e96ae89c34,javaHome=D:\AndroidStudio\android-studio-2025.1.2.12\jbr,javaVersion=21,javaVendor=JetBrains s.r.o.,daemonRegistryDir=C:\Users\User\.gradle\daemon,pid=4996,idleTimeout=10800000,priority=NORMAL,applyInstrumentationAgent=true,nativeServicesMode=ENABLED,daemonOpts=-Xmx2048m,-Dfile.encoding=UTF-8,-Duser.country=RU,-Duser.language=ru,-Duser.variant]
+
+  Looking for a different daemon...
+The client will now receive all logging from the daemon (pid: 3796). The daemon log file: C:\Users\User\.gradle\daemon\8.13\daemon-3796.out.log
+Starting 30th build in daemon [uptime: 6 hrs 38 mins 15.835 secs, performance: 100%, GC rate: 0.00/s, heap usage: 2% of 2 GiB]
+Using 4 worker leases.
+Now considering [E:\Programming\Kotlin_projects\Stayer] as hierarchies to watch
+Watching the file system is configured to be enabled if available
+File system watching is active
+Starting Build
+Settings evaluated using settings file 'E:\Programming\Kotlin_projects\Stayer\settings.gradle.kts'.
+Projects loaded. Root project using build file 'E:\Programming\Kotlin_projects\Stayer\build.gradle.kts'.
+Included projects: [root project 'Stayer', project ':app']
+
+> Configure project :
+Evaluating root project 'Stayer' using build file 'E:\Programming\Kotlin_projects\Stayer\build.gradle.kts'.
+Resolved plugin [id: 'com.android.application', version: '8.12.3', apply: false]
+Resolved plugin [id: 'org.jetbrains.kotlin.android', version: '1.9.0', apply: false]
+
+> Configure project :app
+Evaluating project ':app' using build file 'E:\Programming\Kotlin_projects\Stayer\app\build.gradle.kts'.
+Resolved plugin [id: 'com.android.application']
+Resolved plugin [id: 'org.jetbrains.kotlin.android']
+Using default execution profile
+Using Kotlin Gradle Plugin gradle81 variant
+All projects evaluated.
+Task name matched 'testDebugUnitTest'
+Selected primary task 'testDebugUnitTest' from project :
+Tasks to be executed: [task ':app:preBuild', task ':app:preDebugBuild', task ':app:checkDebugAarMetadata', task ':app:generateDebugResValues', task ':app:mapDebugSourceSetPaths', task ':app:generateDebugResources', task ':app:mergeDebugResources', task ':app:packageDebugResources', task ':app:parseDebugLocalResources', task ':app:createDebugCompatibleScreenManifests', task ':app:extractDeepLinksDebug', task ':app:processDebugMainManifest', task ':app:processDebugManifest', task ':app:processDebugManifestForPackage', task ':app:processDebugResources', task ':app:kaptGenerateStubsDebugKotlin', task ':app:kaptDebugKotlin', task ':app:compileDebugKotlin', task ':app:javaPreCompileDebug', task ':app:compileDebugJavaWithJavac', task ':app:bundleDebugClassesToRuntimeJar', task ':app:bundleDebugClassesToCompileJar', task ':app:kaptGenerateStubsDebugUnitTestKotlin', task ':app:kaptDebugUnitTestKotlin', task ':app:compileDebugUnitTestKotlin', task ':app:preDebugUnitTestBuild', task ':app:javaPreCompileDebugUnitTest', task ':app:compileDebugUnitTestJavaWithJavac', task ':app:processDebugJavaRes', task ':app:processDebugUnitTestJavaRes', task ':app:testDebugUnitTest']
+Tasks that were excluded: []
+Resolve mutations for :app:preBuild (Thread[included builds,5,main]) started.
+:app:preBuild (Thread[Execution worker Thread 3,5,main]) started.
+
+> Task :app:preBuild UP-TO-DATE
+Skipping task ':app:preBuild' as it has no actions.
+Resolve mutations for :app:preDebugBuild (Thread[included builds,5,main]) started.
+:app:preDebugBuild (Thread[included builds,5,main]) started.
+
+> Task :app:preDebugBuild UP-TO-DATE
+Skipping task ':app:preDebugBuild' as it has no actions.
+Resolve mutations for :app:checkDebugAarMetadata (Thread[included builds,5,main]) started.
+:app:checkDebugAarMetadata (Thread[included builds,5,main]) started.
+
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+Caching disabled for task ':app:checkDebugAarMetadata' because:
+  Build cache is disabled
+  Caching has been disabled for the task
+Skipping task ':app:checkDebugAarMetadata' as it is up-to-date.
+Resolve mutations for :app:generateDebugResValues (Thread[included builds,5,main]) started.
+:app:generateDebugResValues (Thread[included builds,5,main]) started.
+
+> Task :app:generateDebugResValues UP-TO-DATE
+Caching disabled for task ':app:generateDebugResValues' because:
+  Build cache is disabled
+Skipping task ':app:generateDebugResValues' as it is up-to-date.
+Resolve mutations for :app:mapDebugSourceSetPaths (Thread[included builds,5,main]) started.
+:app:mapDebugSourceSetPaths (Thread[included builds,5,main]) started.
+
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+Caching disabled for task ':app:mapDebugSourceSetPaths' because:
+  Build cache is disabled
+  Caching has been disabled for the task
+Skipping task ':app:mapDebugSourceSetPaths' as it is up-to-date.
+Resolve mutations for :app:generateDebugResources (Thread[included builds,5,main]) started.
+:app:generateDebugResources (Thread[included builds,5,main]) started.
+
+> Task :app:generateDebugResources UP-TO-DATE
+Caching disabled for task ':app:generateDebugResources' because:
+  Build cache is disabled
+Skipping task ':app:generateDebugResources' as it is up-to-date.
+Resolve mutations for :app:mergeDebugResources (Thread[included builds,5,main]) started.
+:app:mergeDebugResources (Thread[included builds,5,main]) started.
+
+> Task :app:mergeDebugResources UP-TO-DATE
+Caching disabled for task ':app:mergeDebugResources' because:
+  Build cache is disabled
+Skipping task ':app:mergeDebugResources' as it is up-to-date.
+Resolve mutations for :app:packageDebugResources (Thread[included builds,5,main]) started.
+:app:packageDebugResources (Thread[included builds,5,main]) started.
+
+> Task :app:packageDebugResources UP-TO-DATE
+Caching disabled for task ':app:packageDebugResources' because:
+  Build cache is disabled
+Skipping task ':app:packageDebugResources' as it is up-to-date.
+Resolve mutations for :app:parseDebugLocalResources (Thread[included builds,5,main]) started.
+:app:parseDebugLocalResources (Thread[included builds,5,main]) started.
+
+> Task :app:parseDebugLocalResources UP-TO-DATE
+Caching disabled for task ':app:parseDebugLocalResources' because:
+  Build cache is disabled
+Skipping task ':app:parseDebugLocalResources' as it is up-to-date.
+Resolve mutations for :app:createDebugCompatibleScreenManifests (Thread[included builds,5,main]) started.
+:app:createDebugCompatibleScreenManifests (Thread[included builds,5,main]) started.
+
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+Caching disabled for task ':app:createDebugCompatibleScreenManifests' because:
+  Build cache is disabled
+  Caching has been disabled for the task
+Skipping task ':app:createDebugCompatibleScreenManifests' as it is up-to-date.
+Resolve mutations for :app:extractDeepLinksDebug (Thread[included builds,5,main]) started.
+:app:extractDeepLinksDebug (Thread[included builds,5,main]) started.
+
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+Caching disabled for task ':app:extractDeepLinksDebug' because:
+  Build cache is disabled
+Skipping task ':app:extractDeepLinksDebug' as it is up-to-date.
+Resolve mutations for :app:processDebugMainManifest (Thread[included builds,5,main]) started.
+:app:processDebugMainManifest (Thread[included builds,5,main]) started.
+
+> Task :app:processDebugMainManifest UP-TO-DATE
+Caching disabled for task ':app:processDebugMainManifest' because:
+  Build cache is disabled
+Skipping task ':app:processDebugMainManifest' as it is up-to-date.
+Resolve mutations for :app:processDebugManifest (Thread[Execution worker Thread 3,5,main]) started.
+:app:processDebugManifest (Thread[Execution worker Thread 3,5,main]) started.
+
+> Task :app:processDebugManifest UP-TO-DATE
+Caching disabled for task ':app:processDebugManifest' because:
+  Build cache is disabled
+Skipping task ':app:processDebugManifest' as it is up-to-date.
+Resolve mutations for :app:processDebugManifestForPackage (Thread[Execution worker Thread 3,5,main]) started.
+:app:processDebugManifestForPackage (Thread[Execution worker Thread 3,5,main]) started.
+
+> Task :app:processDebugManifestForPackage UP-TO-DATE
+Custom actions are attached to task ':app:processDebugManifestForPackage'.
+Caching disabled for task ':app:processDebugManifestForPackage' because:
+  Build cache is disabled
+Skipping task ':app:processDebugManifestForPackage' as it is up-to-date.
+Resolve mutations for :app:processDebugResources (Thread[Execution worker Thread 3,5,main]) started.
+:app:processDebugResources (Thread[Execution worker Thread 3,5,main]) started.
+
+> Task :app:processDebugResources UP-TO-DATE
+Caching disabled for task ':app:processDebugResources' because:
+  Build cache is disabled
+Skipping task ':app:processDebugResources' as it is up-to-date.
+Resolve mutations for :app:kaptGenerateStubsDebugKotlin (Thread[Execution worker Thread 3,5,main]) started.
+:app:kaptGenerateStubsDebugKotlin (Thread[Execution worker Thread 3,5,main]) started.
+
+> Task :app:kaptGenerateStubsDebugKotlin UP-TO-DATE
+Caching disabled for task ':app:kaptGenerateStubsDebugKotlin' because:
+  Build cache is disabled
+Skipping task ':app:kaptGenerateStubsDebugKotlin' as it is up-to-date.
+Resolve mutations for :app:kaptDebugKotlin (Thread[Execution worker Thread 3,5,main]) started.
+:app:kaptDebugKotlin (Thread[Execution worker Thread 3,5,main]) started.
+
+> Task :app:kaptDebugKotlin UP-TO-DATE
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\main\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\main\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\main\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\debug\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\debug\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\debug\java', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\debug\java', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\debug\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\debug\java', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\debug\java', not found
+Caching disabled for task ':app:kaptDebugKotlin' because:
+  Build cache is disabled
+Skipping task ':app:kaptDebugKotlin' as it is up-to-date.
+Resolve mutations for :app:compileDebugKotlin (Thread[Execution worker Thread 3,5,main]) started.
+:app:compileDebugKotlin (Thread[Execution worker Thread 3,5,main]) started.
+
+> Task :app:compileDebugKotlin UP-TO-DATE
+Caching disabled for task ':app:compileDebugKotlin' because:
+  Build cache is disabled
+Skipping task ':app:compileDebugKotlin' as it is up-to-date.
+Resolve mutations for :app:javaPreCompileDebug (Thread[Execution worker Thread 3,5,main]) started.
+:app:javaPreCompileDebug (Thread[Execution worker Thread 3,5,main]) started.
+
+> Task :app:javaPreCompileDebug UP-TO-DATE
+Caching disabled for task ':app:javaPreCompileDebug' because:
+  Build cache is disabled
+Skipping task ':app:javaPreCompileDebug' as it is up-to-date.
+Resolve mutations for :app:compileDebugJavaWithJavac (Thread[Execution worker Thread 3,5,main]) started.
+:app:compileDebugJavaWithJavac (Thread[Execution worker Thread 3,5,main]) started.
+
+> Task :app:compileDebugJavaWithJavac NO-SOURCE
+Skipping task ':app:compileDebugJavaWithJavac' as it has no source files and no previous output files.
+Resolve mutations for :app:bundleDebugClassesToRuntimeJar (Thread[Execution worker Thread 3,5,main]) started.
+:app:bundleDebugClassesToRuntimeJar (Thread[Execution worker Thread 3,5,main]) started.
+
+> Task :app:bundleDebugClassesToRuntimeJar UP-TO-DATE
+Caching disabled for task ':app:bundleDebugClassesToRuntimeJar' because:
+  Build cache is disabled
+  Caching has been disabled for the task
+Skipping task ':app:bundleDebugClassesToRuntimeJar' as it is up-to-date.
+work action resolve classes.jar (project :app) (Thread[Execution worker Thread 3,5,main]) started.
+Resolve mutations for :app:bundleDebugClassesToCompileJar (Thread[Execution worker Thread 3,5,main]) started.
+:app:bundleDebugClassesToCompileJar (Thread[Execution worker Thread 3,5,main]) started.
+
+> Task :app:bundleDebugClassesToCompileJar UP-TO-DATE
+Caching disabled for task ':app:bundleDebugClassesToCompileJar' because:
+  Build cache is disabled
+  Caching has been disabled for the task
+Skipping task ':app:bundleDebugClassesToCompileJar' as it is up-to-date.
+work action resolve classes.jar (project :app) (Thread[Execution worker Thread 3,5,main]) started.
+Resolve mutations for :app:kaptGenerateStubsDebugUnitTestKotlin (Thread[Execution worker Thread 3,5,main]) started.
+:app:kaptGenerateStubsDebugUnitTestKotlin (Thread[Execution worker Thread 3,5,main]) started.
+Resolve mutations for :app:preDebugUnitTestBuild (Thread[included builds,5,main]) started.
+:app:preDebugUnitTestBuild (Thread[included builds,5,main]) started.
+
+> Task :app:preDebugUnitTestBuild UP-TO-DATE
+Skipping task ':app:preDebugUnitTestBuild' as it has no actions.
+Resolve mutations for :app:javaPreCompileDebugUnitTest (Thread[included builds,5,main]) started.
+:app:javaPreCompileDebugUnitTest (Thread[included builds,5,main]) started.
+
+> Task :app:javaPreCompileDebugUnitTest UP-TO-DATE
+Caching disabled for task ':app:javaPreCompileDebugUnitTest' because:
+  Build cache is disabled
+Skipping task ':app:javaPreCompileDebugUnitTest' as it is up-to-date.
+Resolve mutations for :app:processDebugJavaRes (Thread[included builds,5,main]) started.
+:app:processDebugJavaRes (Thread[included builds,5,main]) started.
+
+> Task :app:processDebugJavaRes UP-TO-DATE
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\main\resources', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\debug\resources', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\main\resources', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\debug\resources', not found
+Caching disabled for task ':app:processDebugJavaRes' because:
+  Build cache is disabled
+  Caching has been disabled for the task
+Skipping task ':app:processDebugJavaRes' as it is up-to-date.
+work action resolve out (project :app) (Thread[included builds,5,main]) started.
+
+> Task :app:kaptGenerateStubsDebugUnitTestKotlin
+Caching disabled for task ':app:kaptGenerateStubsDebugUnitTestKotlin' because:
+  Build cache is disabled
+Task ':app:kaptGenerateStubsDebugUnitTestKotlin' is not up-to-date because:
+  Input property 'sources' file E:\Programming\Kotlin_projects\Stayer\app\src\test\java\com\example\stayer\ComboPacerTest.kt has changed.
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\test\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\test\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\test\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\java', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\java', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\java', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\java', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\test\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\test\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\test\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\java', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\java', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\java', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\java', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\test\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\test\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\test\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\java', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\java', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\java', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\java', not found
+Using Kotlin/JVM incremental compilation
+[KOTLIN] Kotlin compilation 'jdkHome' argument: null
+i: found daemon on port 17494 (23863586 ms old), trying to connect
+i: connected to the daemon
+Options for KOTLIN DAEMON: IncrementalCompilationOptions(super=CompilationOptions(compilerMode=INCREMENTAL_COMPILER, targetPlatform=JVM, reportCategories=[0, 3], reportSeverity=2, requestedCompilationResults=[0], kotlinScriptExtensions=[]), areFileChangesKnown=true, modifiedFiles=[E:\Programming\Kotlin_projects\Stayer\app\src\test\java\com\example\stayer\ComboPacerTest.kt], deletedFiles=[], classpathChanges=NoChanges, workingDir=E:\Programming\Kotlin_projects\Stayer\app\build\kotlin\kaptGenerateStubsDebugUnitTestKotlin\cacheable, multiModuleICSettings=MultiModuleICSettings(buildHistoryFile=E:\Programming\Kotlin_projects\Stayer\app\build\kotlin\kaptGenerateStubsDebugUnitTestKotlin\local-state\build-history.bin, useModuleDetection=true), usePreciseJavaTracking=true, outputFiles=[E:\Programming\Kotlin_projects\Stayer\app\build\tmp\kapt3\incrementalData\debugUnitTest, E:\Programming\Kotlin_projects\Stayer\app\build\tmp\kapt3\stubs\debugUnitTest, E:\Programming\Kotlin_projects\Stayer\app\build\kotlin\kaptGenerateStubsDebugUnitTestKotlin\cacheable, E:\Programming\Kotlin_projects\Stayer\app\build\kotlin\kaptGenerateStubsDebugUnitTestKotlin\local-state])
+Resolve mutations for :app:kaptDebugUnitTestKotlin (Thread[Execution worker Thread 3,5,main]) started.
+:app:kaptDebugUnitTestKotlin (Thread[Execution worker Thread 3,5,main]) started.
+
+> Task :app:kaptDebugUnitTestKotlin UP-TO-DATE
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\test\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\test\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\test\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\java', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\java', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\java', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\java', not found
+Caching disabled for task ':app:kaptDebugUnitTestKotlin' because:
+  Build cache is disabled
+Skipping task ':app:kaptDebugUnitTestKotlin' as it is up-to-date.
+Resolve mutations for :app:compileDebugUnitTestKotlin (Thread[Execution worker Thread 3,5,main]) started.
+:app:compileDebugUnitTestKotlin (Thread[Execution worker Thread 3,5,main]) started.
+
+> Task :app:compileDebugUnitTestKotlin
+Caching disabled for task ':app:compileDebugUnitTestKotlin' because:
+  Build cache is disabled
+Task ':app:compileDebugUnitTestKotlin' is not up-to-date because:
+  Input property 'sources' file E:\Programming\Kotlin_projects\Stayer\app\src\test\java\com\example\stayer\ComboPacerTest.kt has changed.
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\debugUnitTest\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\test\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\test\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\test\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\java', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\java', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\java', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\java', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\debugUnitTest\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\test\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\test\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\test\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\java', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\java', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\java', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\java', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\debugUnitTest\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\test\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\test\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\test\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\java', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\java', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\java', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\java', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\debugUnitTest\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\test\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\test\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\test\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\java', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\java', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\kotlin', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\java', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\java', not found
+Kotlin source files: E:\Programming\Kotlin_projects\Stayer\app\src\test\java\com\example\stayer\ComboPacerTest.kt, E:\Programming\Kotlin_projects\Stayer\app\src\test\java\com\example\stayer\ExampleUnitTest.kt, E:\Programming\Kotlin_projects\Stayer\app\src\test\java\com\example\stayer\IntervalPacerTest.kt, E:\Programming\Kotlin_projects\Stayer\app\src\test\java\com\example\stayer\PacerEmergencyTest.kt
+Java source files: 
+Script source files: 
+Script file extensions: 
+Using Kotlin/JVM incremental compilation
+[KOTLIN] Kotlin compilation 'jdkHome' argument: null
+i: found daemon on port 17494 (23863869 ms old), trying to connect
+i: connected to the daemon
+Options for KOTLIN DAEMON: IncrementalCompilationOptions(super=CompilationOptions(compilerMode=INCREMENTAL_COMPILER, targetPlatform=JVM, reportCategories=[0, 3], reportSeverity=2, requestedCompilationResults=[0], kotlinScriptExtensions=[]), areFileChangesKnown=true, modifiedFiles=[E:\Programming\Kotlin_projects\Stayer\app\src\test\java\com\example\stayer\ComboPacerTest.kt], deletedFiles=[], classpathChanges=NoChanges, workingDir=E:\Programming\Kotlin_projects\Stayer\app\build\kotlin\compileDebugUnitTestKotlin\cacheable, multiModuleICSettings=MultiModuleICSettings(buildHistoryFile=E:\Programming\Kotlin_projects\Stayer\app\build\kotlin\compileDebugUnitTestKotlin\local-state\build-history.bin, useModuleDetection=true), usePreciseJavaTracking=true, outputFiles=[E:\Programming\Kotlin_projects\Stayer\app\build\tmp\kotlin-classes\debugUnitTest, E:\Programming\Kotlin_projects\Stayer\app\build\kotlin\compileDebugUnitTestKotlin\cacheable, E:\Programming\Kotlin_projects\Stayer\app\build\kotlin\compileDebugUnitTestKotlin\local-state])
+Resolve mutations for :app:compileDebugUnitTestJavaWithJavac (Thread[Execution worker Thread 3,5,main]) started.
+:app:compileDebugUnitTestJavaWithJavac (Thread[Execution worker Thread 3,5,main]) started.
+
+> Task :app:compileDebugUnitTestJavaWithJavac NO-SOURCE
+Skipping task ':app:compileDebugUnitTestJavaWithJavac' as it has no source files and no previous output files.
+Resolve mutations for :app:processDebugUnitTestJavaRes (Thread[Execution worker Thread 3,5,main]) started.
+:app:processDebugUnitTestJavaRes (Thread[Execution worker Thread 3,5,main]) started.
+
+> Task :app:processDebugUnitTestJavaRes UP-TO-DATE
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\test\resources', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\resources', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\test\resources', not found
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\resources', not found
+Caching disabled for task ':app:processDebugUnitTestJavaRes' because:
+  Build cache is disabled
+  Caching has been disabled for the task
+Skipping task ':app:processDebugUnitTestJavaRes' as it is up-to-date.
+Resolve mutations for :app:testDebugUnitTest (Thread[Execution worker Thread 3,5,main]) started.
+:app:testDebugUnitTest (Thread[Execution worker Thread 3,5,main]) started.
+Gradle Test Executor 9 started executing tests.
+
+> Task :app:testDebugUnitTest
+Caching disabled for task ':app:testDebugUnitTest' because:
+  Build cache is disabled
+Task ':app:testDebugUnitTest' is not up-to-date because:
+  Task has failed previously.
+file or directory 'E:\Programming\Kotlin_projects\Stayer\app\build\intermediates\javac\debugUnitTest\compileDebugUnitTestJavaWithJavac\classes', not found
+Starting process 'Gradle Test Executor 9'. Working directory: E:\Programming\Kotlin_projects\Stayer\app Command: C:\Program Files\Java\jdk-17\bin\java.exe -Djava.awt.headless=true -Djava.library.path=C:\Program Files\Java\jdk-17\bin;C:\WINDOWS\Sun\Java\bin;C:\WINDOWS\system32;C:\WINDOWS;e:\─ы  ЄхыхЇюэр\cursor\resources\app\bin;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\dotnet\;C:\Program Files\Git\cmd;C:\Program Files\Java\jdk-17\bin;C:\Program Files\Java\jdk-17\bin;C:\Users\User\AppData\Local\Android\Sdk\cmdline-tools\latest\bin;C:\Users\User\AppData\Local\Programs\Python\Python312\;C:\Users\User\AppData\Loca;E:\!Programming\SDK\platform-tools;C:\Program Files\Microsoft VS Code\bin;D:\PostgrSQL\bin;;C:\Program Files\Docker\Docker\resources\bin;D:\aVS_Code\╤юЇЄ\cursor\resources\app\bin;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;e:\─ы  ЄхыхЇюэр\cursor\resources\app\bin;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Program Files (x86)\Skype\Phone\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\NVIDIA Corporation\NVIDIA NvDLISR;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\dotnet\;C:\Program Files\Git\cmd;C:\Program Files\Java\jdk-17\bin;C:\Program Files\Java\jdk-17\bin;C:\Users\User\AppData\Local\Android\Sdk\cmdline-tools\latest\bin;C:\Users\User\AppData\Local\Android\Sdk\platform-tools;C:\Users\User\AppData\Local\Programs\Python\Python312\;C:\Users\User\AppData\Loca;C:\Users\User\AppData\Local\Programs\Python\Python312\Scripts\;C:\Users\User\AppData\Local\Programs\Python\Python312\;C:\Users\User\AppData\Local\Programs\Python\Launcher\;C:\Users\User\AppData\Local\Microsoft\WindowsApps;C:\Users\User\AppData\Local\Programs\Ollama;C:\Users\User\AppData\Roaming\npm;E:\─ы  ЄхыхЇюэр\cursor\resources\app\bin;C:\Users\User\.dotnet\tools;E:\Programming\Downloaded\platform-tools;C:\Program Files\nodejs\;E:\Programming\Downloaded\gradle-8.0\bin;E:\Programming\Google Antigravity\Antigravity\bin;.;E:\Programming\Kotlin_projects\Stayer\app\src\testDebug\jniLibs;E:\Programming\Kotlin_projects\Stayer\app\src\test\jniLibs -Dorg.gradle.internal.worker.tmpdir=E:\Programming\Kotlin_projects\Stayer\app\build\tmp\testDebugUnitTest\work --add-opens=java.base/java.io=ALL-UNNAMED @C:\Users\User\.gradle\.tmp\gradle-worker-classpath9381793122877155612txt -Xmx512m -Dfile.encoding=UTF-8 -Duser.country=RU -Duser.language=ru -Duser.variant -ea worker.org.gradle.process.internal.worker.GradleWorkerMain 'Gradle Test Executor 9'
+Successfully started process 'Gradle Test Executor 9'
+
+ComboPacerTest > testComboFlattenAndHints STANDARD_OUT
+    === ╥┼╤╥: ╩юьсшэшЁютрээр  ЄЁхэшЁютър ===
+
+    ╨рчтхЁэєЄ√х ёхуьхэЄ√ (10):
+      1. WARMUP: 300ё, Єхья Ч
+      2. PACE: 2.0 ъь, Єхья 5 30
+      3. WORK: 120ё, Єхья 4 30
+      4. REST: 60ё, Єхья Ч
+      5. WORK: 120ё, Єхья 4 30
+      6. REST: 60ё, Єхья Ч
+      7. WORK: 120ё, Єхья 4 30
+      8. REST: 60ё, Єхья Ч
+      9. PACE: 1.0 ъь, Єхья 5 30
+      10. COOLDOWN: 180ё, Єхья Ч
+
+    ? ╤ЄЁєъЄєЁр ёхуьхэЄют ъюЁЁхъЄэр
+
+    ╚Єюую: ~5,7 ъь, ~33:30
+
+    ??? ╤шьєы Ўш  PACE ёхуьхэЄр (2 ъь @ 5:30) ???
+    ╤ъюЁюёЄ№: 10,9 ъь/ў, ўхъяюшэЄ ърцф√х 200 ь
+      [66ё / 200ь] -> "╥хья їюЁю°шщ. ╬ёЄрыюё№ 1,8 ъь."
+      [133ё / 403ь] -> "╥хья їюЁю°шщ. ╬ёЄрыюё№ 1,6 ъь."
+      [199ё / 603ь] -> "╥хья їюЁю°шщ. ╬ёЄрыюё№ 1,4 ъь."
+      [265ё / 803ь] -> "╥хья їюЁю°шщ. ╬ёЄрыюё№ 1,2 ъь."
+      [331ё / 1003ь] -> "╥хья їюЁю°шщ. ╬ёЄрыюё№ 1,0 ъь."
+      [397ё / 1203ь] -> "╥хья їюЁю°шщ. ╬ёЄрыюё№ 0,8 ъь."
+      [463ё / 1403ь] -> "╥хья їюЁю°шщ. ╬ёЄрыюё№ 0,6 ъь."
+      [529ё / 1603ь] -> "╥хья їюЁю°шщ. ╬ёЄрыюё№ 0,4 ъь."
+      [595ё / 1803ь] -> "╥хья їюЁю°шщ. ╬ёЄрыюё№ 0,2 ъь."
+      [661ё] -> "─шёЄрэЎш  яЁющфхэр. 2.0 ъь."
+
+    ??? ╤шьєы Ўш  WORK ёхуьхэЄр (2ьшэ @ 4:30) ???
+    ╓хыхтющ: 4 30, схцшЄ: 4 44
+    ╥рщьхЁ: яхЁт√щ ўхЁхч 30ё, чрЄхь ърцф√х 60ё
+
+    ??? JSON serialization test ???
+    JSON length: 289
+    ? ╤хЁшрышчрЎш /фхёхЁшрышчрЎш  OK
+
+    === ╥┼╤╥ ╧╨╬╔─┼═ ===
+
+Gradle Test Executor 9 finished executing tests.
+
+> Task :app:testDebugUnitTest
+Finished generating test XML results (0.007 secs) into: E:\Programming\Kotlin_projects\Stayer\app\build\test-results\testDebugUnitTest
+Generating HTML test report...
+Finished generating test html results (0.024 secs) into: E:\Programming\Kotlin_projects\Stayer\app\build\reports\tests\testDebugUnitTest
+
+[Incubating] Problems report is available at: file:///E:/Programming/Kotlin_projects/Stayer/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.13/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 5s
+26 actionable tasks: 3 executed, 23 up-to-date
+Watched directory hierarchies: [E:\Programming\Kotlin_projects\Stayer]

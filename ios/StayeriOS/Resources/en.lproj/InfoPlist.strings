@@ -1,0 +1,4 @@
+﻿"NSLocationWhenInUseUsageDescription" = "Stayer needs your location to track distance during workouts.";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "Stayer needs background location to track workouts when the screen is off.";
+"NSLocationAlwaysUsageDescription" = "Stayer needs background location to track workouts when the screen is off.";
+"NSMotionUsageDescription" = "Stayer uses motion data to estimate step distance during workouts.";

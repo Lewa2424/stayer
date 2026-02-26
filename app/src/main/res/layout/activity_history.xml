@@ -1,0 +1,82 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <!-- Шапка с названиями столбцов -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="8dp">
+
+        <!-- Дата -->
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/history_date"
+            android:textSize="12sp"
+            android:padding="4dp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:background="#f1f1f1"/>
+
+        <!-- Дистанция -->
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/history_distance"
+            android:textSize="12sp"
+            android:padding="4dp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:background="#f1f1f1"/>
+
+        <!-- Время -->
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/history_time"
+            android:textSize="12sp"
+            android:padding="4dp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:background="#f1f1f1"/>
+
+        <!-- Темп -->
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/history_speed"
+            android:textSize="12sp"
+            android:padding="4dp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:background="#f1f1f1"/>
+
+        <!-- Кнопка удаления (заголовок) -->
+        <TextView
+            android:layout_width="48dp"
+            android:layout_height="wrap_content"
+            android:text="🗑"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:background="#f1f1f1"
+            android:padding="8dp"/>
+    </LinearLayout>
+
+    <!-- Прокручиваемая область с записями -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerView"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:dividerHeight="1dp"
+        android:paddingVertical="8dp"/>
+</LinearLayout>

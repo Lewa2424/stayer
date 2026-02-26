@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="8dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="12dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="⚡ Интервальная"
+                android:textSize="18sp"
+                android:textStyle="bold"/>
+
+            <ImageButton
+                android:id="@+id/btnDelete"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:src="@android:drawable/ic_menu_close_clear_cancel"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Удалить"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Работа: "
+                android:textSize="16sp"/>
+            <EditText
+                android:id="@+id/etWorkTime"
+                android:layout_width="80dp"
+                android:layout_height="wrap_content"
+                android:hint="MM:SS"
+                android:inputType="text"
+                android:textSize="16sp"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=" темп "
+                android:textSize="16sp"/>
+            <EditText
+                android:id="@+id/etWorkPace"
+                android:layout_width="80dp"
+                android:layout_height="wrap_content"
+                android:hint="MM:SS"
+                android:inputType="text"
+                android:textSize="16sp"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="4dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Отдых: "
+                android:textSize="16sp"/>
+            <EditText
+                android:id="@+id/etRestTime"
+                android:layout_width="80dp"
+                android:layout_height="wrap_content"
+                android:hint="MM:SS"
+                android:inputType="text"
+                android:textSize="16sp"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=" темп "
+                android:textSize="16sp"/>
+            <EditText
+                android:id="@+id/etRestPace"
+                android:layout_width="80dp"
+                android:layout_height="wrap_content"
+                android:hint="опц."
+                android:inputType="text"
+                android:textSize="16sp"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="4dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Повторы: "
+                android:textSize="16sp"/>
+            <EditText
+                android:id="@+id/etRepeats"
+                android:layout_width="60dp"
+                android:layout_height="wrap_content"
+                android:hint="3"
+                android:inputType="number"
+                android:textSize="16sp"/>
+        </LinearLayout>
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

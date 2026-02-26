@@ -1,0 +1,50 @@
+﻿"app_name" = "Stayer";
+"info_title" = "Инфо";
+"info_body" = "Stayer помогает отслеживать тренировки и темп. Используйте чек-лист, чтобы дать нужные разрешения.";
+"info_email" = "Почта: alexeyovch26@gmail.com";
+"info_card" = "Карта: 4323 3570 2375 4357";
+"info_open_setup" = "Открыть чек-лист";
+
+"main_history" = "История";
+"main_info" = "Инфо";
+"main_start" = "Старт";
+"main_pause" = "Пауза";
+"main_hold_hint" = "Тап — старт/пауза. Удержание — стоп.";
+"main_time" = "Время";
+"main_distance" = "Дистанция";
+"main_pace" = "Темп";
+"main_goal" = "Цель";
+"main_set_goal" = "Задать цель";
+
+"goal_title" = "Цель";
+"goal_distance_label" = "Дистанция (км)";
+"goal_distance_placeholder" = "5.00";
+"goal_time_label" = "Время (ЧЧ:ММ:СС)";
+"goal_time_placeholder" = "00:30:00";
+"goal_save_distance" = "Сохранить дистанцию";
+"goal_save_time" = "Сохранить время";
+"goal_saved_distance" = "Дистанция сохранена";
+"goal_saved_time" = "Время сохранено";
+
+"history_title" = "История";
+
+"setup_title" = "Подготовка";
+"setup_location_always" = "Геолокация (Всегда)";
+"setup_notifications" = "Уведомления";
+"setup_motion" = "Движение";
+"setup_request" = "Запросить";
+"setup_open_settings" = "Открыть настройки";
+"setup_done" = "Готово";
+"setup_status_granted" = "Разрешено";
+"setup_status_denied" = "Запрещено";
+"setup_status_restricted" = "Ограничено";
+"setup_status_not_requested" = "Не запрошено";
+"setup_status_when_in_use" = "Только при использовании";
+
+"alert_location_title" = "Нужна геолокация";
+"alert_location_message" = "Разрешите доступ к геолокации, чтобы начать тренировку.";
+"alert_ok" = "Ок";
+"alert_location_upgrade_title" = "Геолокация в фоне";
+"alert_location_upgrade_message" = "Разрешите \"Всегда\", чтобы трек сохранялся при выключенном экране.";
+"alert_allow" = "Разрешить";
+"history_pace_label" = "Темп";

@@ -1,0 +1,25 @@
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- Поле для отображения целевой дистанции -->
+    <TextView
+        android:id="@+id/targetDistanceTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Целевая дистанция: "
+        android:textSize="24sp"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="100dp"/>
+
+    <!-- Поле для отображения целевого времени -->
+    <TextView
+        android:id="@+id/targetTimeTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Целевое время: "
+        android:textSize="24sp"
+        android:layout_below="@id/targetDistanceTextView"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="20dp"/>
+</RelativeLayout>

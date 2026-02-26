@@ -1,0 +1,85 @@
+<resources>
+    <string name="app_name">Stayer</string>
+    <string name="start_button_text">Старт</string>
+    <string name="goal_button_text">Цель</string>
+    <string name="history_button_text">История</string>
+    <string name="goal_activity_title">Цель</string>
+    <string name="history_activity_title">История</string>
+    <string name="stop_with_hold">Стоп\nУдерживать</string>
+    <string name="prompt_distance">Введи целевую дистанцию</string>
+    <string name="prompt_time">Введи целевое время</string>
+    <string name="confirm_distance_button">Подтвердить дистанцию</string>
+    <string name="confirm_time_button">Подтвердить время</string>
+    <string name="hint_distance">Введите дистанцию (км)</string>
+    <string name="hint_time">Введите время (чч:мм:сс)</string>
+    <string name="timer_initial_value">00:00:00</string>
+    <string name="history_button_description">Просмотр истории тренировок</string>
+    <string name="timer_default_value">00:00:00</string>
+    <string name="initial_distance">0 км</string>
+    <string name="history_date">Дата</string>
+    <string name="history_distance">Дистанция</string>
+    <string name="history_time">Время</string>
+    <string name="history_speed">Темп</string>
+    <string name="history_delete">Удалить</string>
+    <string name="workout_distance">%.1f км</string>
+    <string name="workout_speed">%.1f км/ч</string>
+    <string name="info_button_description">Информация</string>
+    <string name="info_instruction_title">Инструкция</string>
+    <string name="info_instruction_text">Stayer — приложение для отслеживания темпа во время беговых тренировок.
+
+ОСНОВНЫЕ ВОЗМОЖНОСТИ:
+• Установка целей по дистанции и времени
+• Отслеживание дистанции и времени тренировки
+• Расчет темпа (мин/км)
+• Периодические голосовые подсказки каждые 10% от пройденной целевой дистанции с текущим и нужным темпом
+• Корректировочные уведомления о текущем и необходимом темпе
+• Сохранение истории тренировок
+
+КАК НАЧАТЬ:
+
+1. УСТАНОВКА ЦЕЛИ (обязательно)
+   Нажмите на карточку «Цель» внизу экрана. Установите целевую дистанцию (км) и целевое время (чч:мм:сс).
+   
+   Формат ввода:
+   • Дистанция: километры.метры (например, 05.50 для 5 км 500 м)
+   • Время: часы:минуты:секунды (например, 00:30:00 для 30 минут)
+   • Если число однозначное, добавьте 0 перед ним (например, 5 -> 05)
+   
+   Без установки цели тренировка не начнется.
+
+2. ЗАПУСК ТРЕНИРОВКИ
+   Нажмите кнопку «Старт» в центре экрана. Приложение начнет работу.
+
+3. ПАУЗА
+   Во время тренировки нажмите кнопку «Пауза», чтобы временно остановить отсчет. Нажмите снова, чтобы продолжить.
+
+4. ОСТАНОВКА И СОХРАНЕНИЕ
+   Удерживайте кнопку «Стоп» более 1 секунды. Тренировка завершится, результаты сохранятся в историю, все показатели сбросятся.
+
+5. ПРОСМОТР ИСТОРИИ
+   Нажмите иконку истории (круговая стрелка) в правом верхнем углу. Вы увидите список всех тренировок с датой, дистанцией, временем и темпом.
+
+6. УДАЛЕНИЕ ЗАПИСИ
+   В истории нажмите иконку корзины справа от нужной записи, чтобы удалить ее.
+
+ПОДДЕРЖКА РАЗРАБОТКИ:
+Если есть желание и возможность, поддержите автора:</string>
+    <string name="info_email">alexeyovch26@gmail.com</string>
+    <string name="info_card_number">4323 3570 2375 4357</string>
+    <string name="info_close">Закрыть</string>
+    <string name="setup_check_button">Проверить настройки</string>
+
+    <string-array name="workout_modes">
+        <item>Обычная</item>
+        <item>Интервальная</item>
+        <item>Комбинированная</item>
+    </string-array>
+
+    <string-array name="combo_block_types">
+        <item>Разминка</item>
+        <item>Обычная</item>
+        <item>Интервальная</item>
+        <item>Заминка</item>
+    </string-array>
+
+</resources>

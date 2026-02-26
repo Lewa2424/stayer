@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 1. Внешний кант (более темный кольцевой слой для pressed state) -->
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#4F3580" /> <!-- Чуть темнее чем medal_ring_dark -->
+        </shape>
+    </item>
+    
+    <!-- 2. Внутренний круг с отступом (создает эффект канта) -->
+    <!-- Для эффекта нажатия меняем угол градиента или делаем его темнее -->
+    <item android:top="8dp" android:bottom="8dp" android:left="8dp" android:right="8dp">
+        <shape android:shape="oval">
+            <gradient
+                android:startColor="#8A73BE"
+                android:endColor="#6A4CAB"
+                android:angle="270"
+                android:type="linear" />
+        </shape>
+    </item>
+    
+    <!-- Внутренняя тень/затемнение сверху, создающая эффект утопленности -->
+    <item android:bottom="40dp" android:left="8dp" android:right="8dp" android:top="8dp">
+        <shape android:shape="oval">
+             <gradient
+                android:startColor="#33000000"
+                android:endColor="#00000000"
+                android:angle="270" />
+        </shape>
+    </item>
+</layer-list>

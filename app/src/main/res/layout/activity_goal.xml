@@ -1,0 +1,400 @@
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:id="@+id/header"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/goal_activity_title"
+            android:layout_gravity="center_horizontal"/>
+
+        <!-- Режим тренировки (Compose Animated Gradient) -->
+        <androidx.compose.ui.platform.ComposeView
+            android:id="@+id/cvWorkoutModeLabel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="8dp"/>
+
+        <Spinner
+            android:id="@+id/spWorkoutMode"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:entries="@array/workout_modes"
+            android:spinnerMode="dropdown"
+            android:layout_marginBottom="16dp"/>
+
+        <!-- Блок для обычной тренировки -->
+        <LinearLayout
+            android:id="@+id/blockNormal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- Надпись для целевой дистанции -->
+            <TextView
+                android:id="@+id/distanceLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/prompt_distance"
+                android:textSize="22sp"
+                android:layout_marginBottom="8dp"/>
+
+            <!-- Поле для ввода целевой дистанции -->
+            <EditText
+                android:id="@+id/distanceInput"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"
+                android:hint="00.00, например, 05.00 км"
+                android:inputType="numberDecimal|numberSigned"
+                android:digits="0123456789."
+                android:padding="16dp"
+                android:autofillHints="distance"/>
+
+            <!-- Кнопка подтверждения для дистанции -->
+            <Button
+                android:id="@+id/confirmDistanceButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/confirm_distance_button"
+                android:layout_marginTop="8dp"/>
+
+            <!-- Переключатель: Цель - время или темп -->
+            <RadioGroup
+                android:id="@+id/rgNormalGoalMode"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="12dp">
+
+                <RadioButton
+                    android:id="@+id/rbGoalTime"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Целевое время"
+                    android:checked="true"/>
+
+                <RadioButton
+                    android:id="@+id/rbGoalPace"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Целевой темп"
+                    android:layout_marginStart="16dp"/>
+            </RadioGroup>
+
+            <!-- TextView для отображения расчётных значений -->
+            <TextView
+                android:id="@+id/tvNormalDerived"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textSize="16sp"
+                android:layout_marginTop="6dp"
+                android:textColor="#4CAF50"/>
+
+            <!-- Блок для ввода целевого времени -->
+            <LinearLayout
+                android:id="@+id/blockGoalTime"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/timeLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/prompt_time"
+                    android:textSize="22sp"
+                    android:layout_marginTop="16dp"
+                    android:layout_marginBottom="8dp"/>
+
+                <EditText
+                    android:id="@+id/timeInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="60dp"
+                    android:hint="00:00:00, например, 01:10:00"
+                    android:inputType="textNoSuggestions"
+                    android:digits="0123456789:"
+                    android:padding="16dp"
+                    android:autofillHints="time"/>
+
+                <Button
+                    android:id="@+id/confirmTimeButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/confirm_time_button"
+                    android:layout_marginTop="8dp"/>
+            </LinearLayout>
+
+            <!-- Блок для ввода целевого темпа -->
+            <LinearLayout
+                android:id="@+id/blockGoalPace"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Введи целевой темп"
+                    android:textSize="22sp"
+                    android:layout_marginTop="16dp"
+                    android:layout_marginBottom="8dp"/>
+
+                <EditText
+                    android:id="@+id/etTargetPace"
+                    android:layout_width="match_parent"
+                    android:layout_height="60dp"
+                    android:hint="MM:SS, например 08:20"
+                    android:inputType="textNoSuggestions"
+                    android:digits="0123456789:"
+                    android:padding="16dp"
+                    android:autofillHints=""/>
+
+                <Button
+                    android:id="@+id/btnConfirmPace"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Подтвердить темп"
+                    android:layout_marginTop="8dp"/>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Блок для интервальной тренировки -->
+        <LinearLayout
+            android:id="@+id/blockInterval"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone"
+            android:layout_marginTop="8dp">
+
+            <!-- Разминка -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Разминка (опционально)"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:layout_marginTop="8dp"/>
+
+            <EditText
+                android:id="@+id/etWarmupTime"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:hint="Время, например 15:00"
+                android:inputType="textNoSuggestions"
+                android:digits="0123456789:"
+                android:textSize="14sp"/>
+
+            <EditText
+                android:id="@+id/etWarmupPace"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:hint="Темп, например 08:20 (можно пусто)"
+                android:inputType="textNoSuggestions"
+                android:digits="0123456789:"
+                android:textSize="14sp"/>
+
+            <!-- Работа -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Работа"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:layout_marginTop="16dp"/>
+
+            <EditText
+                android:id="@+id/etWorkTime"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:hint="Время, например 00:20"
+                android:inputType="textNoSuggestions"
+                android:digits="0123456789:"
+                android:textSize="14sp"/>
+
+            <EditText
+                android:id="@+id/etWorkPace"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:hint="Темп, например 05:00"
+                android:inputType="textNoSuggestions"
+                android:digits="0123456789:"
+                android:textSize="14sp"/>
+
+            <!-- Отдых -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Отдых"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:layout_marginTop="16dp"/>
+
+            <EditText
+                android:id="@+id/etRestTime"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:hint="Время, например 01:30"
+                android:inputType="textNoSuggestions"
+                android:digits="0123456789:"
+                android:textSize="14sp"/>
+
+            <EditText
+                android:id="@+id/etRestPace"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:hint="Темп, например 08:30 (пусто = без контроля)"
+                android:inputType="textNoSuggestions"
+                android:digits="0123456789:"
+                android:textSize="14sp"/>
+
+            <!-- Повторы -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Количество серий (Работа + Отдых)"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:layout_marginTop="16dp"/>
+
+            <EditText
+                android:id="@+id/etRepeats"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:hint="Повторить цикл раз, например 8"
+                android:inputType="number"
+                android:textSize="14sp"/>
+
+            <!-- Заминка -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Заминка (опционально)"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:layout_marginTop="16dp"/>
+
+            <EditText
+                android:id="@+id/etCooldownTime"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:hint="Время, например 10:00"
+                android:inputType="textNoSuggestions"
+                android:digits="0123456789:"
+                android:textSize="14sp"/>
+
+            <EditText
+                android:id="@+id/etCooldownPace"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:hint="Темп, например 08:40 (можно пусто)"
+                android:inputType="textNoSuggestions"
+                android:digits="0123456789:"
+                android:textSize="14sp"/>
+
+            <Button
+                android:id="@+id/btnSaveInterval"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Сохранить интервальную"
+                android:layout_marginTop="16dp"/>
+
+            <TextView
+                android:id="@+id/tvIntervalSummary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textSize="16sp"
+                android:textColor="#4CAF50"
+                android:layout_marginTop="6dp"/>
+        </LinearLayout>
+
+        <!-- Блок для комбинированной тренировки -->
+        <LinearLayout
+            android:id="@+id/blockCombo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone"
+            android:layout_marginTop="16dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Конструктор тренировки"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp"/>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvComboBlocks"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:nestedScrollingEnabled="false"/>
+
+            <!-- Добавить блок -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="8dp"
+                android:gravity="center_vertical">
+
+                <Spinner
+                    android:id="@+id/spComboBlockType"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:entries="@array/combo_block_types"
+                    android:spinnerMode="dropdown"/>
+
+                <Button
+                    android:id="@+id/btnAddComboBlock"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="+ Добавить"
+                    android:layout_marginStart="8dp"/>
+            </LinearLayout>
+
+            <!-- Итого -->
+            <TextView
+                android:id="@+id/tvComboSummary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:textSize="14sp"
+                android:text=""/>
+
+            <!-- Сохранить -->
+            <Button
+                android:id="@+id/btnSaveCombo"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="💾 Сохранить"
+                android:layout_marginTop="8dp"/>
+        </LinearLayout>
+
+        <!-- Кнопка "Назад" -->
+        <Button
+            android:id="@+id/backButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Назад"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="32dp"
+            android:layout_marginBottom="24dp"/>
+
+    </LinearLayout>
+</ScrollView>

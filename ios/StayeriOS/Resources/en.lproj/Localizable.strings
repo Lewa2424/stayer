@@ -1,0 +1,50 @@
+﻿"app_name" = "Stayer";
+"info_title" = "Info";
+"info_body" = "Stayer helps you track workouts and pace. Use the setup checklist to grant required permissions.";
+"info_email" = "Email: alexeyovch26@gmail.com";
+"info_card" = "Card: 4323 3570 2375 4357";
+"info_open_setup" = "Open setup checklist";
+
+"main_history" = "History";
+"main_info" = "Info";
+"main_start" = "Start";
+"main_pause" = "Pause";
+"main_hold_hint" = "Tap to start/pause. Hold to stop.";
+"main_time" = "Time";
+"main_distance" = "Distance";
+"main_pace" = "Pace";
+"main_goal" = "Goal";
+"main_set_goal" = "Set Goal";
+
+"goal_title" = "Goal";
+"goal_distance_label" = "Target distance (km)";
+"goal_distance_placeholder" = "5.00";
+"goal_time_label" = "Target time (HH:MM:SS)";
+"goal_time_placeholder" = "00:30:00";
+"goal_save_distance" = "Save distance";
+"goal_save_time" = "Save time";
+"goal_saved_distance" = "Distance saved";
+"goal_saved_time" = "Time saved";
+
+"history_title" = "History";
+
+"setup_title" = "Setup";
+"setup_location_always" = "Location (Always)";
+"setup_notifications" = "Notifications";
+"setup_motion" = "Motion";
+"setup_request" = "Request";
+"setup_open_settings" = "Open app settings";
+"setup_done" = "Done";
+"setup_status_granted" = "Granted";
+"setup_status_denied" = "Denied";
+"setup_status_restricted" = "Restricted";
+"setup_status_not_requested" = "Not requested";
+"setup_status_when_in_use" = "When In Use";
+
+"alert_location_title" = "Location Required";
+"alert_location_message" = "Please allow location access to start a workout.";
+"alert_ok" = "OK";
+"alert_location_upgrade_title" = "Background location";
+"alert_location_upgrade_message" = "Allow Always to keep tracking when the screen is off.";
+"alert_allow" = "Allow";
+"history_pace_label" = "Pace";

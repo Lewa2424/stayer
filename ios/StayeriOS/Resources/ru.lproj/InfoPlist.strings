@@ -1,0 +1,4 @@
+﻿"NSLocationWhenInUseUsageDescription" = "Stayer использует геолокацию для расчета дистанции во время тренировки.";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "Stayer использует геолокацию в фоне, чтобы трек сохранялся при выключенном экране.";
+"NSLocationAlwaysUsageDescription" = "Stayer использует геолокацию в фоне, чтобы трек сохранялся при выключенном экране.";
+"NSMotionUsageDescription" = "Stayer использует данные движения для оценки дистанции по шагам.";

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Тень под медалью (фейковая тень из нескольких слоев или просто круглая подложка) -->
+    <!-- Так как стандартный elevation не всегда работает хорошо на кругах с кастомными формами,
+         мы можем использовать elevation в самом layout `elevation="8dp" outlineAmbientShadowColor="@color/soft_accent_main"`. 
+         Здесь только внутренние слои: -->
+         
+    <!-- 1. Внешний кант (более темный кольцевой слой) -->
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="@color/medal_ring_dark" />
+        </shape>
+    </item>
+    
+    <!-- 2. Внутренний круг с отступом (создает эффект канта) -->
+    <item android:top="8dp" android:bottom="8dp" android:left="8dp" android:right="8dp">
+        <shape android:shape="oval">
+            <gradient
+                android:startColor="@color/medal_inner_top"
+                android:endColor="@color/medal_inner_bottom"
+                android:angle="270"
+                android:type="linear" />
+        </shape>
+    </item>
+    
+    <!-- 3. Легкий блик сверху (Полумесяц) -->
+    <item android:top="8dp" android:bottom="40dp" android:left="16dp" android:right="16dp">
+        <shape android:shape="oval">
+            <gradient
+                android:startColor="#22FFFFFF"
+                android:endColor="#00FFFFFF"
+                android:angle="270" />
+        </shape>
+    </item>
+</layer-list>
