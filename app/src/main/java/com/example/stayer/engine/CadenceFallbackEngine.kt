@@ -31,7 +31,7 @@ class CadenceFallbackEngine(private val context: Context) {
     // --- Constants ---
     private val REQUIRED_STABLE_TICKS_FOR_CALIBRATION = 30
     private val MAX_TICKS_WITHOUT_GPS = 7
-    private val QUARANTINE_DURATION_TICKS = 15
+    private val QUARANTINE_DURATION_TICKS = 3
 
     /**
      * Updates the cadence ring buffer and returns current calculated cadence.

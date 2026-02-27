@@ -537,7 +537,8 @@ class WorkoutForegroundService : Service() {
         logGpxPoint(location, rejectReason)
 
         if (rejectReason != null) {
-            fallbackEngine.processGpsRejected(rejectReason)
+            // Убрана паника шагомера.
+            // Если точки не будет 7 секунд, движок сам мягко уйдет в BLIND через ticksSinceLastGps.
             return
         }
 
