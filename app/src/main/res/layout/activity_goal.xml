@@ -391,7 +391,7 @@
             android:id="@+id/backButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/back_to_main_button"
+            android:text="Назад"
             android:layout_marginTop="24dp"/>
 
         <!-- Блок со статистикой каденса -->
