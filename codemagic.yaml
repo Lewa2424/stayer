@@ -15,4 +15,4 @@ workflows:
     publishing:
       email:
         recipients:
-          - YOUR_EMAIL_HERE
+          - alexeyovch26@gmail.com
