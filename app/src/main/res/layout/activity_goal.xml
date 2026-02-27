@@ -389,12 +389,39 @@
         <!-- Кнопка "Назад" -->
         <Button
             android:id="@+id/backButton"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Назад"
-            android:layout_gravity="center_horizontal"
+            android:text="@string/back_to_main_button"
+            android:layout_marginTop="24dp"/>
+
+        <!-- Блок со статистикой каденса -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
             android:layout_marginTop="32dp"
-            android:layout_marginBottom="24dp"/>
+            android:background="#1A6E4BAE"
+            android:padding="16dp"
+            android:layout_marginBottom="32dp">
+
+            <Button
+                android:id="@+id/btnShowCadenceStats"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Мой шаг и Каденс"
+                android:backgroundTint="#8154C4"
+                android:textColor="#FFFFFF"/>
+
+            <TextView
+                android:id="@+id/tvCadenceStats"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:textSize="16sp"
+                android:lineSpacingExtra="4dp"
+                android:visibility="gone"
+                android:textColor="#333333"/>
+        </LinearLayout>
 
     </LinearLayout>
 </ScrollView>

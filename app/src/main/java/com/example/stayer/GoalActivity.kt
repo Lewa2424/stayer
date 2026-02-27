@@ -235,6 +235,31 @@ class GoalActivity : AppCompatActivity() {
             tvNormalDerived.text = "✓ Сохранено. Расчётное время: ${formatTime(timeSec)}"
             Toast.makeText(this, "Цель сохранена", Toast.LENGTH_SHORT).show()
         }
+
+        // Cadence Stats Logic
+        val btnShowCadenceStats = findViewById<Button>(R.id.btnShowCadenceStats)
+        val tvCadenceStats = findViewById<TextView>(R.id.tvCadenceStats)
+
+        btnShowCadenceStats.setOnClickListener {
+            val cadencePrefs = getSharedPreferences("StepCalibrationProfile", MODE_PRIVATE)
+            
+            val strideUnder140 = cadencePrefs.getFloat("bucket_under_140", 0.70f)
+            val stride140to150 = cadencePrefs.getFloat("bucket_140_150", 0.78f)
+            val stride150to160 = cadencePrefs.getFloat("bucket_150_160", 0.85f)
+            val strideOver160 = cadencePrefs.getFloat("bucket_over_160", 0.92f)
+
+            val statsText = StringBuilder()
+            statsText.append("ВАШ КАЛИБРОВАННЫЙ ШАГ\n(При потере GPS)\n\n")
+            statsText.append(String.format("Прогулочный (менее 140/мин): %.2f м\n", strideUnder140))
+            statsText.append(String.format("Легкий бег (140 - 150/мин): %.2f м\n", stride140to150))
+            statsText.append(String.format("Средний темп (150 - 160/мин): %.2f м\n", stride150to160))
+            statsText.append(String.format("Быстрый бег (более 160/мин): %.2f м", strideOver160))
+
+            tvCadenceStats.text = statsText.toString()
+            tvCadenceStats.visibility = View.VISIBLE
+            btnShowCadenceStats.text = "Обновить данные"
+        }
+
         // === Логика для Interval mode ===
         val btnSaveInterval = findViewById<Button>(R.id.btnSaveInterval)
         val tvIntervalSummary = findViewById<TextView>(R.id.tvIntervalSummary)
