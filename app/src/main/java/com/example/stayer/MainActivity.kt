@@ -12,8 +12,6 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
-import android.media.AudioAttributes
-import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
@@ -21,7 +19,6 @@ import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.speech.tts.TextToSpeech
-import android.speech.tts.UtteranceProgressListener
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.setContent
@@ -91,7 +88,6 @@ class MainActivity : AppCompatActivity() {
 
     // Переменные для управления звуком
     private lateinit var audioManager: AudioManager
-    private lateinit var audioFocusRequest: AudioFocusRequest
 
     // ==== UI state (Compose) ====
     private var uiElapsedMs by mutableLongStateOf(0L)
@@ -114,6 +110,10 @@ class MainActivity : AppCompatActivity() {
     private var uiWorkoutMode by mutableIntStateOf(0)
     private var uiScenarioPreview by mutableStateOf("")
 
+    // GPS Status Indicator
+    enum class GpsStatus { SEARCHING, POOR, READY }
+    private var uiGpsStatus by mutableStateOf(GpsStatus.SEARCHING)
+    private var preStartLocationCallback: LocationCallback? = null
 
     private fun checkLocationPermission() {
         if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION)
@@ -124,6 +124,11 @@ class MainActivity : AppCompatActivity() {
                 locationPermissionRequestCode
             )
         }
+    }
+
+    private fun startWorkoutService() {
+        stopPreStartLocationUpdates()
+        WorkoutForegroundService.startOrResume(this)
     }
 
     private fun checkNotificationPermissionIfNeeded() {
@@ -211,9 +216,11 @@ class MainActivity : AppCompatActivity() {
                 // ВАЖНО: НЕ стартуем тренировку автоматически после выдачи разрешения.
                 // Тренировку запускает только пользователь кнопкой "Старт".
                 Toast.makeText(this, "Разрешение получено. Нажмите «Старт» чтобы начать тренировку.", Toast.LENGTH_SHORT).show()
+                startPreStartLocationUpdates() // Начинаем слушать GPS после получения разрешения
             } else {
                 writeLog("PERMISSION: Location permission denied")
                 Toast.makeText(this, "Необходимо разрешение на доступ к местоположению для отслеживания дистанции", Toast.LENGTH_LONG).show()
+                uiGpsStatus = GpsStatus.SEARCHING // Сброс статуса, если разрешение отозвано
             }
         }
     }
@@ -332,9 +339,49 @@ class MainActivity : AppCompatActivity() {
                         intervalTargetPaceSecPerKm = uiIntervalTargetPaceSecPerKm,
                         workoutMode = uiWorkoutMode,
                         scenarioPreview = uiScenarioPreview,
+                        gpsStatus = uiGpsStatus
                     )
                 }
             }
+        }
+    }
+
+
+    @SuppressLint("MissingPermission")
+    private fun startPreStartLocationUpdates() {
+        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION)
+            == PackageManager.PERMISSION_GRANTED) {
+
+            if (preStartLocationCallback == null) {
+                preStartLocationCallback = object : LocationCallback() {
+                    override fun onLocationResult(locationResult: com.google.android.gms.location.LocationResult) {
+                        locationResult.lastLocation?.let { location ->
+                            val accuracy = location.accuracy // in meters
+                            Log.d("GPS_STATUS", "Pre-start GPS accuracy: $accuracy m")
+                            uiGpsStatus = when {
+                                accuracy <= 10 -> GpsStatus.READY // Good accuracy
+                                accuracy <= 30 -> GpsStatus.POOR // Acceptable, but not great
+                                else -> GpsStatus.SEARCHING // Poor or no fix
+                            }
+                        } ?: run {
+                            uiGpsStatus = GpsStatus.SEARCHING
+                        }
+                    }
+                }
+            }
+            fusedLocationClient.requestLocationUpdates(locationRequest, preStartLocationCallback!!, Looper.getMainLooper())
+            writeLog("GPS_STATUS: Started pre-start location updates")
+        } else {
+            uiGpsStatus = GpsStatus.SEARCHING
+            writeLog("GPS_STATUS: Cannot start pre-start location updates, permission denied.")
+        }
+    }
+
+    private fun stopPreStartLocationUpdates() {
+        preStartLocationCallback?.let {
+            fusedLocationClient.removeLocationUpdates(it)
+            preStartLocationCallback = null
+            writeLog("GPS_STATUS: Stopped pre-start location updates")
         }
     }
 
@@ -344,7 +391,7 @@ class MainActivity : AppCompatActivity() {
             writeLog("USER_ACTION: Start pressed - ${if (isPaused) "resuming" else "starting"} workout")
             isTimerRunning = true
             isPaused = false
-            WorkoutForegroundService.startOrResume(this)
+            startWorkoutService() // Use the new function
 
             // Если это возобновление после паузы, корректируем startTime (фолбек для истории)
             if (pausedTime > 0) {
@@ -560,12 +607,16 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
+        stopPreStartLocationUpdates()
         // ВАЖНО: не останавливаем трекинг тут.
         // На экране-off Activity уходит в onPause, и раньше это полностью убивало GPS.
     }
 
     override fun onResume() {
         super.onResume()
+        if (!uiIsRunning) {
+            startPreStartLocationUpdates()
+        }
         val sharedPreferences: SharedPreferences = getSharedPreferences("Goals", MODE_PRIVATE)
         val distance = sharedPreferences.getString("TARGET_DISTANCE", "0")
         val time = sharedPreferences.getString("TARGET_TIME", "0")
@@ -592,7 +643,6 @@ class MainActivity : AppCompatActivity() {
             var workSec = 0
             var restSec = 0
             var workPace: Int? = null
-            var restPace: Int? = null
             for (seg in scenario.segments) {
                 when (seg.type) {
                     "WARMUP" -> {
@@ -600,7 +650,7 @@ class MainActivity : AppCompatActivity() {
                         lines.add("\u0420\u0430\u0437\u043c.  ${fmtTime(seg.durationSec)}  $pace")
                     }
                     "WORK" -> { workCount++; workSec = seg.durationSec; workPace = seg.targetPaceSecPerKm }
-                    "REST" -> { restSec = seg.durationSec; restPace = seg.targetPaceSecPerKm }
+                    "REST" -> { restSec = seg.durationSec }
                     "COOLDOWN" -> {
                         val pace = seg.targetPaceSecPerKm?.let { fmtPace(it) } ?: ""
                         lines.add("\u0417\u0430\u043c\u0438\u043d.  ${fmtTime(seg.durationSec)}  $pace")
@@ -658,17 +708,17 @@ class MainActivity : AppCompatActivity() {
 
     private fun fmtTime(sec: Int): String {
         val m = sec / 60; val s = sec % 60
-        return "%d:%02d".format(m, s)
+        return String.format(Locale.getDefault(), "%d:%02d", m, s)
     }
 
     private fun fmtPace(secPerKm: Int): String {
         val m = secPerKm / 60; val s = secPerKm % 60
-        return "%d:%02d/\u043a\u043c".format(m, s)
+        return String.format(Locale.getDefault(), "%d:%02d/\u043a\u043c", m, s)
     }
 
     private fun fmtHms(sec: Int): String {
         val h = sec / 3600; val m = (sec % 3600) / 60; val s = sec % 60
-        return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%02d:%02d".format(m, s)
+        return if (h > 0) String.format(Locale.getDefault(), "%d:%02d:%02d", h, m, s) else String.format(Locale.getDefault(), "%02d:%02d", m, s)
     }
 
     override fun onStart() {
@@ -708,7 +758,7 @@ class MainActivity : AppCompatActivity() {
         }
         val filter = IntentFilter(WorkoutForegroundService.ACTION_BROADCAST_UPDATE)
         // Один код-путь для всех API, плюс lint перестаёт ругаться на "missing flag"
-        ContextCompat.registerReceiver(this, workoutUpdateReceiver, filter, androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
+        ContextCompat.registerReceiver(this, workoutUpdateReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
     }
 
     override fun onStop() {
