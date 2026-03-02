@@ -1,42 +1,59 @@
 import xml.etree.ElementTree as ET
-from math import radians, cos, sin, asin, sqrt
+import math
+import sys
 
-def haversine(lon1, lat1, lon2, lat2):
-    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
-    dlon = lon2 - lon1 
-    dlat = lat2 - lat1 
-    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
-    c = 2 * asin(sqrt(a)) 
-    r = 6371 
-    return c * r * 1000 
+def haversine(lat1, lon1, lat2, lon2):
+    R = 6371000
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    delta_phi = math.radians(lat2 - lat1)
+    delta_lambda = math.radians(lon2 - lon1)
+    a = math.sin(delta_phi / 2.0)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda / 2.0)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return R * c
 
-def analyze_gpx(filepath):
-    tree = ET.parse(filepath)
+gpx_file = r'e:\Programming\Kotlin_projects\Stayer\app\src\test\java\com\example\stayer\stayer_track_20260302_065722.gpx'
+
+print("Parsing:", gpx_file)
+try:
+    tree = ET.parse(gpx_file)
     root = tree.getroot()
-    
-    # Handle namespaces
-    namespace = ''
-    if '}' in root.tag:
-        namespace = root.tag.split('}')[0] + '}'
-
-    trkpts = root.findall(f'.//{namespace}trkpt')
-    
-    print(f"Found {len(trkpts)} track points.")
-
-    total_dist = 0.0
-    prev_pt = None
-
-    for pt in trkpts:
-        lat = float(pt.get('lat'))
-        lon = float(pt.get('lon'))
+    ns = {'gpx': 'http://www.topografix.com/GPX/1/1'}
+    pts = root.findall('.//gpx:trkpt', ns)
+    if not pts:
+        ns = {'gpx': 'http://www.topografix.com/GPX/1/0'}
+        pts = root.findall('.//gpx:trkpt', ns)
+    if not pts:
+        ns = {'gpx': ''}
+        pts = root.findall('.//trkpt', ns)
         
-        if prev_pt:
-            dist = haversine(prev_pt[0], prev_pt[1], lon, lat)
-            total_dist += dist
+    print(f'Total points found: {len(pts)}')
+    
+    accepted_dist = 0.0
+    rejected = 0
+    reasons = {}
+    last_accepted = None
+    
+    for pt in pts:
+        desc = pt.find('gpx:desc', ns)
+        if desc is None: desc = pt.find('desc', ns)
+        
+        is_rejected = desc is not None and desc.text and 'REJECTED' in desc.text
+        
+        if is_rejected:
+            rejected += 1
+            reason = desc.text.split('.')[0] if '.' in desc.text else desc.text
+            reasons[reason] = reasons.get(reason, 0) + 1
+        else:
+            lat = float(pt.get('lat'))
+            lon = float(pt.get('lon'))
+            if last_accepted:
+                accepted_dist += haversine(last_accepted[0], last_accepted[1], lat, lon)
+            last_accepted = (lat, lon)
             
-        prev_pt = (lon, lat)
-
-    print(f"Total Raw Distance: {total_dist:.2f} meters")
-
-if __name__ == '__main__':
-    analyze_gpx(r'e:\\Programming\\Kotlin_projects\\Stayer\\app\\src\\test\\java\\com\\example\\stayer\\stayer_track_20260227_184058.gpx')
+    print(f'Rejected points: {rejected}')
+    for r, count in reasons.items():
+        print(f'  {r}: {count}')
+        
+    print(f'Calculated Accepted Distance: {accepted_dist / 1000.0:.3f} km')
+except Exception as e:
+    print('Error:', e)

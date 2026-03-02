@@ -34,6 +34,14 @@ object PacerLogicHelper {
         }
     }
 
+    fun formatPaceForDisplay(secPerKm: Int): String {
+        val m = secPerKm / 60
+        val s = secPerKm % 60
+        return "%d:%02d".format(m, s)
+    }
+
+    fun formatPaceForWatch(secPerKm: Int): String = formatPaceForDisplay(secPerKm)
+
     /**
      * Formats a time difference for speech with full Russian words.
      */
@@ -179,12 +187,21 @@ object PacerLogicHelper {
                         // D2: Running slower than original target — advantage is shrinking
                         val lossRate = currentPaceSecPerKm - targetPaceSecPerKm
                         val kmToLose = timeAheadNow.toDouble() / lossRate
-                        val loseAtKm = (currentDistKm + kmToLose).roundToInt().coerceAtLeast(1)
+                        val targetDistInt = (currentDistKm + remainingDistKm).roundToInt()
+                        
+                        // ИСПОЛЬЗУЕМ toInt() для консервативного округления "вниз"
+                        val loseAtKmExact = currentDistKm + kmToLose
+                        val loseAtKmFloor = loseAtKmExact.toInt().coerceAtLeast(1)
 
-                        if (loseAtKm <= currentDistKm + remainingDistKm) {
-                            "Запас $globalTimeText, но с таким темпом потеряете преимущество на ${loseAtKm}-м километре. Сейчас темп $curText, а нужен $dynText."
+                        if (loseAtKmFloor < targetDistInt) {
+                            // Запас сгорит ДО финиша
+                            "Запас $globalTimeText. Вы потеряете преимущество на ${loseAtKmFloor}-м километре. Темп упал до $curText относительно целевого. Чтобы успеть, нужен $dynText. Ускорьтесь."
+                        } else if (loseAtKmFloor == targetDistInt && currentPaceSecPerKm == dynamicTargetPace) {
+                            // Парадокс идеального спуска: мы растеряем весь запас секунда в секунду к финишу
+                            "Запас $globalTimeText. Вы растеряете это преимущество как раз к финишу. Сохраняйте текущий темп $curText, чтобы успеть вовремя."
                         } else {
-                            "Запас $globalTimeText, но темп упал. Сейчас темп $curText, а нужен $dynText. Прибавьте."
+                            // Запас останется даже после финиша
+                            "Запас $globalTimeText, но темп упал до $curText относительно целевого. Для финиша вовремя достаточно $dynText. Вы идёте с запасом."
                         }
                     }
                     diffVsDynamic < -20 -> {

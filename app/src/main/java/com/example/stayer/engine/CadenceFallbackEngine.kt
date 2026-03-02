@@ -205,6 +205,13 @@ class CadenceFallbackEngine(private val context: Context) {
      * Called when the filtering layer receives a point but rejects it (e.g. speed jump).
      */
     fun processGpsRejected(reason: String) {
+        // Only react to major anomalies (like jumps/teleports) by instantly switching to BLIND.
+        // Minor rejections (bad accuracy, too slow/close) should just be ignored, 
+        // letting the `ticksSinceLastGps` timeout naturally handle the loss of good signal.
+        if (!reason.startsWith("Too fast") && !reason.startsWith("Jump")) {
+            return
+        }
+
         when (currentState) {
             State.STABLE -> {
                 // A rejected point drops us immediately to BLIND mode

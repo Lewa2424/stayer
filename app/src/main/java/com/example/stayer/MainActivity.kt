@@ -116,11 +116,19 @@ class MainActivity : AppCompatActivity() {
     private var preStartLocationCallback: LocationCallback? = null
 
     private fun checkLocationPermission() {
-        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION)
-            != PackageManager.PERMISSION_GRANTED) {
+        val permissionsToRequest = mutableListOf(android.Manifest.permission.ACCESS_FINE_LOCATION)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            permissionsToRequest.add(android.Manifest.permission.ACTIVITY_RECOGNITION)
+        }
+        
+        val missingPermissions = permissionsToRequest.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+        
+        if (missingPermissions.isNotEmpty()) {
             ActivityCompat.requestPermissions(
                 this,
-                arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION),
+                missingPermissions.toTypedArray(),
                 locationPermissionRequestCode
             )
         }
@@ -211,7 +219,9 @@ class MainActivity : AppCompatActivity() {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == locationPermissionRequestCode) {
-            if ((grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
+            val locationIndex = permissions.indexOf(android.Manifest.permission.ACCESS_FINE_LOCATION)
+            val isLocationGranted = locationIndex >= 0 && grantResults.isNotEmpty() && grantResults[locationIndex] == PackageManager.PERMISSION_GRANTED
+            if (isLocationGranted) {
                 writeLog("PERMISSION: Location permission granted")
                 // ВАЖНО: НЕ стартуем тренировку автоматически после выдачи разрешения.
                 // Тренировку запускает только пользователь кнопкой "Старт".

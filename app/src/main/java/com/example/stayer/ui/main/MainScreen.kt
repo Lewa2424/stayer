@@ -394,6 +394,11 @@ fun SetupChecklistScreen(
     }
 
     val locationGranted = remember(refreshTick) { hasPermission(Manifest.permission.ACCESS_FINE_LOCATION) }
+    val pedometerGranted = remember(refreshTick) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            hasPermission(Manifest.permission.ACTIVITY_RECOGNITION)
+        } else true
+    }
     val notificationsGranted = remember(refreshTick) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             hasPermission(Manifest.permission.POST_NOTIFICATIONS)
@@ -413,9 +418,12 @@ fun SetupChecklistScreen(
         } else true
     }
 
-    val requiredOk = locationGranted && systemLocationEnabled && notificationsGranted && notificationsEnabled
+    val requiredOk = locationGranted && systemLocationEnabled && notificationsGranted && notificationsEnabled && pedometerGranted
 
     val requestLocation = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { refreshTick++ }
+    val requestPedometer = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { refreshTick++ }
     val requestNotifications = rememberLauncherForActivityResult(
@@ -501,6 +509,18 @@ fun SetupChecklistScreen(
                         requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
                     } else {
                         openNotificationSettings()
+                    }
+                }
+            )
+            SetupRow(
+                title = "Шагомер",
+                subtitle = "Нужен для страховки от потери сигнала GPS",
+                ok = pedometerGranted,
+                required = true,
+                actionLabel = if (pedometerGranted) "Ок" else "Разрешить",
+                onAction = {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !pedometerGranted) {
+                        requestPedometer.launch(Manifest.permission.ACTIVITY_RECOGNITION)
                     }
                 }
             )

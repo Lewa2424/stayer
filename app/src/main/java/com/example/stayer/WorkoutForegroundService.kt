@@ -537,7 +537,7 @@ class WorkoutForegroundService : Service() {
         logGpxPoint(location, rejectReason)
 
         if (rejectReason != null) {
-            // Убрана паника шагомера.
+            fallbackEngine.processGpsRejected(rejectReason)
             // Если точки не будет 7 секунд, движок сам мягко уйдет в BLIND через ticksSinceLastGps.
             return
         }
@@ -600,7 +600,7 @@ class WorkoutForegroundService : Service() {
 
         // 1) точность
         val acc = if (cur.hasAccuracy()) cur.accuracy else Float.MAX_VALUE
-        if (acc > 15f) return "Bad accuracy (${String.format("%.1f", acc)}m)" // 10–15м на практике; 15м мягче, меньше "провалов"
+        if (acc > 40f) return "Bad accuracy (${String.format("%.1f", acc)}m)" // 40м мягче (для РЭБ)
 
         // 2) дистанция
         val d = prev.distanceTo(cur)
@@ -1285,13 +1285,13 @@ class WorkoutForegroundService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        stopLocationUpdates()
+        fusedLocationClient.removeLocationUpdates(locationCallback!!)
         sensorManager.unregisterListener(stepListener)
         stopTicking()
         closeGpxLog()
         if (wakeLock.isHeld) wakeLock.release()
         try {
-            textToSpeech.shutdown()
+            textToSpeech?.shutdown()
         } catch (_: Exception) {
         }
     }
