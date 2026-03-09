@@ -112,6 +112,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+private const val CURRENT_PACE_WINDOW_MS = 15_000L
+private const val CURRENT_PACE_UPDATE_MS = 5_000L
+private const val CURRENT_PACE_MIN_SPAN_MS = 5_000L
+
+private data class PaceDisplaySample(
+    val elapsedMs: Long,
+    val distanceKm: Float
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
@@ -120,8 +129,8 @@ fun MainScreen(
     isPaused: Boolean,
     elapsedMs: Long,
     distanceKm: Float,
-    targetDistanceText: String,
-    targetTimeText: String,
+    goalValueText: String,
+    goalSupportingText: String?,
     onHistoryClick: () -> Unit,
     onSettingsClick: () -> Unit,
     onGoalClick: () -> Unit,
@@ -143,8 +152,30 @@ fun MainScreen(
     val infoSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     // Темп в UI обновляем не на каждый тик, а раз в 15 секунд (чтобы не "мелькал").
-    val latestElapsedMs by rememberUpdatedState(elapsedMs)
-    val latestDistanceKm by rememberUpdatedState(distanceKm)
+    val recentPaceSamples = remember { ArrayDeque<PaceDisplaySample>() }
+    LaunchedEffect(elapsedMs, distanceKm, isRunning) {
+        if (!isRunning) {
+            recentPaceSamples.clear()
+            return@LaunchedEffect
+        }
+
+        val sample = PaceDisplaySample(
+            elapsedMs = elapsedMs.coerceAtLeast(0L),
+            distanceKm = distanceKm.coerceAtLeast(0f)
+        )
+        val lastSample = recentPaceSamples.lastOrNull()
+        if (lastSample == null ||
+            sample.elapsedMs > lastSample.elapsedMs ||
+            sample.distanceKm > lastSample.distanceKm
+        ) {
+            recentPaceSamples.addLast(sample)
+        }
+
+        val cutoffMs = sample.elapsedMs - CURRENT_PACE_WINDOW_MS
+        while (recentPaceSamples.isNotEmpty() && recentPaceSamples.first().elapsedMs < cutoffMs) {
+            recentPaceSamples.removeFirst()
+        }
+    }
     var displayedPaceText by remember { mutableStateOf("—") }
     LaunchedEffect(isRunning, isPaused) {
         if (!isRunning) {
@@ -153,14 +184,14 @@ fun MainScreen(
         }
 
         // Обновим сразу при старте/возобновлении/паузе
-        displayedPaceText = formatPaceMinPerKm(latestElapsedMs, latestDistanceKm)
+        displayedPaceText = formatCurrentPaceMinPerKm(recentPaceSamples)
 
         // Во время паузы — не обновляем каждые 15 сек, оставляем зафиксированным.
         if (isPaused) return@LaunchedEffect
 
         while (true) {
-            delay(15_000L)
-            displayedPaceText = formatPaceMinPerKm(latestElapsedMs, latestDistanceKm)
+            delay(CURRENT_PACE_UPDATE_MS)
+            displayedPaceText = formatCurrentPaceMinPerKm(recentPaceSamples)
         }
     }
 
@@ -230,8 +261,8 @@ fun GpsStatusBadge(gpsStatus: MainActivity.GpsStatus) {
                 elapsedMs = elapsedMs,
                 distanceKm = distanceKm,
                 paceText = displayedPaceText,
-                targetDistanceText = targetDistanceText,
-                targetTimeText = targetTimeText,
+                goalValueText = goalValueText,
+                goalSupportingText = goalSupportingText,
                 onGoalClick = onGoalClick,
                 intervalActive = intervalActive,
                 intervalType = intervalType,
@@ -721,8 +752,8 @@ private fun StatsPanel(
     elapsedMs: Long,
     distanceKm: Float,
     paceText: String,
-    targetDistanceText: String,
-    targetTimeText: String,
+    goalValueText: String,
+    goalSupportingText: String?,
     onGoalClick: () -> Unit,
     intervalActive: Boolean = false,
     intervalType: String = "",
@@ -848,9 +879,9 @@ private fun StatsPanel(
                     )
                     StatTile(
                         icon = Icons.Outlined.Flag,
-                        value = formatGoalValue(targetDistanceText),
+                        value = goalValueText,
                         label = "\u0426\u0435\u043B\u044C",
-                        supporting = targetTimeText,
+                        supporting = goalSupportingText,
                         showChevron = true,
                         enablePressedState = false,
                         enableHintAnimation = false,
@@ -1144,6 +1175,21 @@ private fun formatPaceMinPerKm(elapsedMs: Long, distanceKm: Float): String {
     val min = total / 60
     val s = total % 60
     return "%d:%02d /км".format(min, s)
+}
+
+private fun formatCurrentPaceMinPerKm(samples: ArrayDeque<PaceDisplaySample>): String {
+    if (samples.size < 2) return "—"
+    val start = samples.first()
+    val end = samples.last()
+    val deltaMs = end.elapsedMs - start.elapsedMs
+    val deltaKm = end.distanceKm - start.distanceKm
+    if (deltaMs < CURRENT_PACE_MIN_SPAN_MS || deltaKm <= 0.01f) return "—"
+    val secPerKm = (deltaMs / 1000f) / deltaKm
+    if (!secPerKm.isFinite() || secPerKm <= 0f) return "—"
+    val total = secPerKm.toInt()
+    val min = total / 60
+    val sec = total % 60
+    return "%d:%02d /км".format(min, sec)
 }
 
 private fun formatGoalValue(targetDistanceText: String): String {

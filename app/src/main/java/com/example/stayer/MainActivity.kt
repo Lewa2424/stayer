@@ -78,6 +78,8 @@ class MainActivity : AppCompatActivity() {
     private var locationCallback: LocationCallback? = null
 
     private var workoutUpdateReceiver: BroadcastReceiver? = null
+    private var finalSnapshotReceiver: BroadcastReceiver? = null
+    private var pendingSnapshot: WorkoutSummarySnapshot? = null
 
 
     // Переменные для шагомера и TextToSpeech
@@ -95,8 +97,8 @@ class MainActivity : AppCompatActivity() {
     private var uiStepDistanceKm by mutableFloatStateOf(0f)
     private var uiIsRunning by mutableStateOf(false)
     private var uiIsPaused by mutableStateOf(false)
-    private var uiTargetDistance by mutableStateOf("0")
-    private var uiTargetTime by mutableStateOf("0")
+    private var uiGoalValue by mutableStateOf("—")
+    private var uiGoalSupporting by mutableStateOf<String?>(null)
 
     // Interval UI state (from service broadcast)
     private var uiIntervalActive by mutableStateOf(false)
@@ -252,8 +254,7 @@ class MainActivity : AppCompatActivity() {
 
         // Начальные цели (UI)
         val goalsPrefs: SharedPreferences = getSharedPreferences("Goals", MODE_PRIVATE)
-        uiTargetDistance = goalsPrefs.getString("TARGET_DISTANCE", "0") ?: "0"
-        uiTargetTime = goalsPrefs.getString("TARGET_TIME", "0") ?: "0"
+        refreshGoalUi(goalsPrefs)
 
         // Инициализация TTS с лямбда-коллбэком
         textToSpeech = TextToSpeech(this) { status ->
@@ -324,8 +325,8 @@ class MainActivity : AppCompatActivity() {
                         isPaused = uiIsPaused,
                         elapsedMs = uiElapsedMs,
                         distanceKm = (uiGpsDistanceKm + uiStepDistanceKm),
-                        targetDistanceText = uiTargetDistance,
-                        targetTimeText = uiTargetTime,
+                        goalValueText = uiGoalValue,
+                        goalSupportingText = uiGoalSupporting,
                         onHistoryClick = {
                             writeLog("USER_ACTION: History icon pressed")
                             startActivity(Intent(this, HistoryActivity::class.java))
@@ -399,22 +400,32 @@ class MainActivity : AppCompatActivity() {
         if (!isTimerRunning || isPaused) {
             // Запуск тренировки или возобновление после паузы
             writeLog("USER_ACTION: Start pressed - ${if (isPaused) "resuming" else "starting"} workout")
+            
+            // ВАЖНО: Не полагаемся на локальный pausedTime для определения режима
+            // Источник истины - состояние Service (isPaused из broadcast)
+            // Service сам управляет totalPausedMs и правильно считает elapsed time
+            
             isTimerRunning = true
             isPaused = false
-            startWorkoutService() // Use the new function
+            startWorkoutService() // Service сам разберётся: resume или new start
 
-            // Если это возобновление после паузы, корректируем startTime (фолбек для истории)
+            // Локальные переменные Activity используются ТОЛЬКО для UI-фолбека
+            // Если это возобновление после паузы (ручной или авто), корректируем
             if (pausedTime > 0) {
                 totalPausedDuration += System.currentTimeMillis() - pausedTime
                 pausedTime = 0
                 writeLog("WORKOUT: Resumed after pause, totalPausedDuration=${totalPausedDuration}ms")
-            } else {
-                // Первый запуск
+            } else if (startTime == 0L) {
+                // Первый запуск - инициализируем локальные переменные
                 startTime = System.currentTimeMillis()
                 totalPausedDuration = 0
                 lastPaceCheckDistance = 0f
                 writeLog("=== Workout started ===")
                 writeLog("Start time: ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(startTime))}")
+            } else {
+                // Возобновление после автопаузы: pausedTime=0 но startTime!=0
+                // Service сам посчитает правильное elapsed time
+                writeLog("WORKOUT: Resuming after autopause (Service manages timing)")
             }
         } else {
             // Пауза
@@ -429,124 +440,22 @@ class MainActivity : AppCompatActivity() {
 
     private fun stopAndResetWorkout() {
         writeLog("USER_ACTION: Long press - stopping and resetting workout")
-        isLongPress = true
-        isActive = false
-        isTimerRunning = false
-        isPaused = false
-        pausedTime = 0
-        totalPausedDuration = 0
-        handler.removeCallbacksAndMessages(null)
-        timerRunnable?.let { handler.removeCallbacks(it) }
-
-        // Останавливаем сервис трекинга
+        writeLog("WORKOUT_FINISH_REQUESTED")
+        
+        // НОВАЯ НАДЁЖНАЯ АРХИТЕКТУРА:
+        // 1. Service САМ формирует snapshot
+        // 2. Service САМ сохраняет snapshot в надёжное хранилище
+        // 3. Service САМ сохраняет историю (не зависит от Activity!)
+        // 4. Service отправляет snapshot в Activity (для UI)
+        // 5. Activity получает snapshot и отправляет ACK
+        // 6. Service получает ACK и делает окончательный reset
+        // 7. Если ACK не придёт (Activity убита) - Service сделает reset сам через 3 сек
+        
+        // Отправляем команду сервису
         WorkoutForegroundService.stopAndReset(this@MainActivity)
-
-        // Снимем "снимок" результатов ДО обнуления переменных,
-        // иначе сохранение истории будет неверным (особенно при работе в фоне)
-        val workoutStartTime = startTime
-        val workoutTotalPaused = totalPausedDuration
-        val workoutStepDistance = stepDistance
-        val workoutElapsedMsFromService = lastElapsedMsFromService
-        val workoutGpsDistance = getSharedPreferences("WorkoutRuntime", MODE_PRIVATE)
-            .getFloat("CURRENT_DISTANCE_KM", totalDistance)
-
-        // Сброс значений для дистанции и шагомера
-        totalDistance = 0f
-        uiGpsDistanceKm = 0f
-        previousLatitude = null
-        previousLongitude = null
-        stepCount = 0
-        stepDistance = 0.0f
-        uiStepDistanceKm = 0f
-        lastPaceCheckDistance = 0f
-        uiElapsedMs = 0L
-        // Важно: startTime обнулим после запуска сохранения (см. ниже)
-
-        // Очистка лог-файла при сбросе
-        clearLogFile()
-
-        // НЕ сбрасываем цели при остановке - они должны сохраняться
-
-        // Используем Coroutine для выполнения длительных операций
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                // Учитываем паузы — берем время из сервиса (источник истины).
-                // Фолбек: если вдруг оно 0, используем старый расчёт.
-                val actualElapsedTime = when {
-                    workoutElapsedMsFromService > 0L -> workoutElapsedMsFromService
-                    workoutStartTime > 0L -> (System.currentTimeMillis() - workoutStartTime - workoutTotalPaused).coerceAtLeast(0L)
-                    else -> 0L
-                }
-                val seconds = (actualElapsedTime / 1000) % 60
-                val minutes = (actualElapsedTime / (1000 * 60)) % 60
-                val hours = (actualElapsedTime / (1000 * 60 * 60)) % 24
-                val timeString = String.format(Locale.getDefault(), "%02d:%02d:%02d", hours, minutes, seconds)
-
-                // Вычисляем общую дистанцию (GPS + шаги)
-                val finalTotalDistance = workoutGpsDistance + workoutStepDistance
-
-                // Вычисляем скорость (без учета пауз)
-                val speed = if (finalTotalDistance > 0 && actualElapsedTime > 0) {
-                    finalTotalDistance / (actualElapsedTime / 3600000.0f)
-                } else 0f // км/ч
-
-                // Получаем текущую дату
-                val currentDate = SimpleDateFormat("dd.MM.yy", Locale.getDefault()).format(Date())
-
-                // Считываем сохранённую статистику интервалов (если есть)
-                val runtimePrefs = getSharedPreferences("WorkoutRuntime", MODE_PRIVATE)
-                val avgWork = runtimePrefs.getInt("INTERVAL_AVG_WORK", -1).takeIf { it > 0 }
-                val avgRest = runtimePrefs.getInt("INTERVAL_AVG_REST", -1).takeIf { it > 0 }
-                val avgNoWarmup = runtimePrefs.getInt("INTERVAL_AVG_NO_WARMUP", -1).takeIf { it > 0 }
-                val avgTotal = runtimePrefs.getInt("INTERVAL_AVG_TOTAL", -1).takeIf { it > 0 }
-
-                // Считываем цели
-                val goalsPrefs = getSharedPreferences("Goals", MODE_PRIVATE)
-                val targetDistanceKm = goalsPrefs.getFloat("TARGET_DISTANCE_KM", 0f).takeIf { it > 0f }
-                    ?: goalsPrefs.getString("TARGET_DISTANCE", "0")?.replace(',', '.')?.toFloatOrNull()?.takeIf { it > 0f }
-                val targetTimeSec = goalsPrefs.getInt("TARGET_TIME_SEC", 0).takeIf { it > 0 }
-                val workoutModeInt = goalsPrefs.getInt("WORKOUT_MODE", 0)
-
-                // Определяем фактический режим
-                // Выводим "interval" или "combo" если есть сохраненный режим, иначе фолбек по старой логике
-                val mode = when {
-                    workoutModeInt == 1 -> "interval"
-                    workoutModeInt == 2 -> "combined"
-                    avgWork != null || avgRest != null -> "interval"
-                    else -> "normal"
-                }
-
-                // Создаем запись в истории
-                val workoutHistory = WorkoutHistory(
-                    date = currentDate,
-                    distance = finalTotalDistance,
-                    time = timeString,
-                    speed = speed,
-                    elapsedMs = actualElapsedTime,
-                    workoutMode = mode,
-                    targetDistanceKm = targetDistanceKm,
-                    targetTimeSec = targetTimeSec,
-                    targetPaceSecPerKm = null,
-                    avgPaceWorkSec = avgWork,
-                    avgPaceRestSec = avgRest,
-                    avgPaceWithoutWarmupSec = avgNoWarmup,
-                    avgPaceTotalSec = avgTotal
-                )
-
-                // Сохраняем данные о тренировке
-                writeLog("WORKOUT_END: mode=$mode, distance=${String.format(Locale.getDefault(), "%.3f", finalTotalDistance)}km, time=$timeString")
-                saveWorkoutHistory(workoutHistory)
-                writeLog("=== Workout saved ===")
-
-                // Очищаем временную статистику интервалов
-                runtimePrefs.edit().clear().apply()
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-
-        // Теперь можно обнулять startTime
-        startTime = 0
+        
+        // Ждём snapshot через finalSnapshotReceiver
+        // После получения отправим ACK и сбросим UI
     }
 
     // Запись в лог-файл
@@ -628,20 +537,17 @@ class MainActivity : AppCompatActivity() {
             startPreStartLocationUpdates()
         }
         val sharedPreferences: SharedPreferences = getSharedPreferences("Goals", MODE_PRIVATE)
-        val distance = sharedPreferences.getString("TARGET_DISTANCE", "0")
-        val time = sharedPreferences.getString("TARGET_TIME", "0")
-        uiTargetDistance = distance ?: "0"
-        uiTargetTime = time ?: "0"
+        refreshGoalUi(sharedPreferences)
 
         // Read workout mode & build scenario preview
-        val mode = sharedPreferences.getInt("WORKOUT_MODE", 0)
+        val mode = WorkoutGoalStore.load(sharedPreferences).workoutMode
         uiWorkoutMode = mode
         uiScenarioPreview = when (mode) {
             1 -> buildIntervalPreview(sharedPreferences)
             2 -> buildComboPreview(sharedPreferences)
             else -> ""
         }
-        writeLog("SCREEN: MainActivity resumed, goals: distance=$distance, time=$time, mode=$mode")
+        writeLog("SCREEN: MainActivity resumed, goalValue=$uiGoalValue, goalSupporting=$uiGoalSupporting, mode=$mode")
     }
 
     private fun buildIntervalPreview(prefs: SharedPreferences): String {
@@ -716,6 +622,56 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun refreshGoalUi(prefs: SharedPreferences) {
+        val goal = WorkoutGoalStore.load(prefs)
+        uiWorkoutMode = goal.workoutMode
+        when (goal.workoutMode) {
+            1 -> {
+                uiGoalValue = "Интервалы"
+                uiGoalSupporting = buildIntervalGoalSummary(goal.intervalScenarioJson)
+            }
+            2 -> {
+                uiGoalValue = "Комбо"
+                uiGoalSupporting = buildComboGoalSummary(goal.comboScenarioJson)
+            }
+            else -> {
+                uiGoalValue = goal.targetDistanceKm
+                    ?.takeIf { it > 0f }
+                    ?.let { String.format(Locale.getDefault(), "%.2f км", it) }
+                    ?: "—"
+                uiGoalSupporting = when {
+                    goal.targetTimeSec != null && goal.targetTimeSec > 0 -> fmtHms(goal.targetTimeSec)
+                    goal.targetPaceSecPerKm != null && goal.targetPaceSecPerKm > 0 -> fmtPace(goal.targetPaceSecPerKm)
+                    else -> null
+                }
+            }
+        }
+    }
+
+    private fun buildIntervalGoalSummary(json: String?): String? {
+        if (json.isNullOrBlank()) return null
+        return try {
+            val scenario = Gson().fromJson(json, IntervalScenario::class.java)
+            val totalSec = scenario.segments.sumOf { it.durationSec }
+            val workCount = scenario.segments.count { it.type == "WORK" }
+            "≈${fmtHms(totalSec)} • $workCount сер."
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun buildComboGoalSummary(json: String?): String? {
+        if (json.isNullOrBlank()) return null
+        return try {
+            val scenario = comboGson().fromJson(json, ComboScenario::class.java)
+            val totalDist = scenario.estimateTotalDistanceKm()
+            val totalSec = scenario.estimateTotalTimeSec()
+            "≈${String.format(Locale.getDefault(), "%.1f км", totalDist)} • ${fmtHms(totalSec)}"
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     private fun fmtTime(sec: Int): String {
         val m = sec / 60; val s = sec % 60
         return String.format(Locale.getDefault(), "%d:%02d", m, s)
@@ -747,11 +703,16 @@ class MainActivity : AppCompatActivity() {
                     uiGpsDistanceKm = gpsDistanceKm
                     uiElapsedMs = elapsedMs
 
-                    // Состояние кнопки — тоже из сервиса, чтобы не было рассинхрона
+                    // Состояние кнопки — из сервиса (источник истины)
                     isTimerRunning = running
                     isPaused = paused
                     uiIsRunning = running
                     uiIsPaused = paused
+                    
+                    // ВАЖНО: НЕ синхронизируем pausedTime здесь
+                    // Service сам управляет временем паузы через totalPausedMs
+                    // Activity использует pausedTime ТОЛЬКО для UI-логики кнопки Start/Pause
+                    // При автопаузе просто отображаем состояние isPaused из Service
 
                     // interval extras (optional)
                     uiIntervalActive = intent.getBooleanExtra("interval_active", false)
@@ -766,9 +727,69 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-        val filter = IntentFilter(WorkoutForegroundService.ACTION_BROADCAST_UPDATE)
-        // Один код-путь для всех API, плюс lint перестаёт ругаться на "missing flag"
-        ContextCompat.registerReceiver(this, workoutUpdateReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+        
+        // Регистрируем receiver для финального snapshot
+        if (finalSnapshotReceiver == null) {
+            finalSnapshotReceiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context?, intent: Intent?) {
+                    if (intent?.action != WorkoutForegroundService.ACTION_BROADCAST_FINAL_SNAPSHOT) return
+                    
+                    val snapshotJson = intent.getStringExtra(WorkoutForegroundService.EXTRA_SNAPSHOT_JSON)
+                    if (snapshotJson.isNullOrBlank()) {
+                        writeLog("ERROR: Received empty snapshot JSON")
+                        return
+                    }
+                    
+                    try {
+                        val snapshot = Gson().fromJson(snapshotJson, WorkoutSummarySnapshot::class.java)
+                        writeLog("SNAPSHOT_RECEIVED: distance=${snapshot.distanceKm}km, elapsed=${snapshot.elapsedMs}ms")
+                        
+                        // Проверяем валидность
+                        if (!snapshot.isValid()) {
+                            writeLog("ACTIVITY: Invalid snapshot received, but Service already saved it")
+                        } else {
+                            writeLog("ACTIVITY: Valid snapshot received, Service already saved history")
+                        }
+                        
+                        // ВАЖНО: История уже сохранена Service!
+                        // Мы только обновляем UI и отправляем ACK
+                        
+                        // Отправляем ACK в Service для завершения reset'а
+                        WorkoutForegroundService.sendSaveAck(this@MainActivity)
+                        writeLog("ACTIVITY: ACK sent to Service")
+                        
+                        // Сбрасываем UI
+                        resetUIAfterWorkout()
+                        
+                        // Опционально: показываем уведомление пользователю
+                        if (snapshot.isValid()) {
+                            val distStr = String.format(Locale.getDefault(), "%.2f км", snapshot.distanceKm)
+                            val seconds = (snapshot.elapsedMs / 1000) % 60
+                            val minutes = (snapshot.elapsedMs / (1000 * 60)) % 60
+                            val hours = (snapshot.elapsedMs / (1000 * 60 * 60))
+                            val timeStr = String.format(Locale.getDefault(), "%02d:%02d:%02d", hours, minutes, seconds)
+                            Toast.makeText(
+                                this@MainActivity,
+                                "Тренировка сохранена: $distStr за $timeStr",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    } catch (e: Exception) {
+                        writeLog("ERROR parsing snapshot: ${e.message}")
+                        e.printStackTrace()
+                        // Даже при ошибке парсинга отправляем ACK и сбрасываем UI
+                        WorkoutForegroundService.sendSaveAck(this@MainActivity)
+                        resetUIAfterWorkout()
+                    }
+                }
+            }
+        }
+        
+        val updateFilter = IntentFilter(WorkoutForegroundService.ACTION_BROADCAST_UPDATE)
+        val snapshotFilter = IntentFilter(WorkoutForegroundService.ACTION_BROADCAST_FINAL_SNAPSHOT)
+        
+        ContextCompat.registerReceiver(this, workoutUpdateReceiver, updateFilter, ContextCompat.RECEIVER_NOT_EXPORTED)
+        ContextCompat.registerReceiver(this, finalSnapshotReceiver, snapshotFilter, ContextCompat.RECEIVER_NOT_EXPORTED)
     }
 
     override fun onStop() {
@@ -779,6 +800,44 @@ class MainActivity : AppCompatActivity() {
             } catch (_: Exception) {
             }
         }
+        finalSnapshotReceiver?.let {
+            try {
+                unregisterReceiver(it)
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    /**
+     * Сбрасывает UI после завершения тренировки.
+     * Вызывается ПОСЛЕ успешного сохранения snapshot.
+     */
+    private fun resetUIAfterWorkout() {
+        isLongPress = true
+        isActive = false
+        isTimerRunning = false
+        isPaused = false
+        pausedTime = 0
+        totalPausedDuration = 0
+        handler.removeCallbacksAndMessages(null)
+        timerRunnable?.let { handler.removeCallbacks(it) }
+
+        // Сброс значений для дистанции и шагомера
+        totalDistance = 0f
+        uiGpsDistanceKm = 0f
+        previousLatitude = null
+        previousLongitude = null
+        stepCount = 0
+        stepDistance = 0.0f
+        uiStepDistanceKm = 0f
+        lastPaceCheckDistance = 0f
+        uiElapsedMs = 0L
+        startTime = 0
+
+        // Очистка лог-файла при сбросе
+        clearLogFile()
+        
+        writeLog("UI_RESET_DONE")
     }
 
     override fun onDestroy() {

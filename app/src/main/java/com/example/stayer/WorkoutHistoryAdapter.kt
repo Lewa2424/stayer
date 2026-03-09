@@ -1,6 +1,7 @@
 package com.example.stayer
 
 import android.content.Context
+import android.graphics.Color
 import android.transition.AutoTransition
 import android.transition.TransitionManager
 import android.view.LayoutInflater
@@ -16,26 +17,54 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.gson.Gson
 import java.util.Locale
 
-// Класс адаптера для отображения истории тренировок
 class WorkoutHistoryAdapter(
     private val context: Context,
     private val workoutHistoryList: MutableList<WorkoutHistory>
 ) : RecyclerView.Adapter<WorkoutHistoryAdapter.WorkoutViewHolder>() {
 
+    private val primaryTextColor = Color.parseColor("#424242")
+    private val secondaryTextColor = Color.parseColor("#616161")
+
+    private fun formatDistance(distanceKm: Float): String {
+        return String.format(Locale.getDefault(), "%.2f км", distanceKm)
+    }
+
+    private fun paceSeconds(elapsedMs: Long, distanceKm: Float): Int? {
+        if (distanceKm <= 0f || elapsedMs <= 0L) return null
+        return ((elapsedMs / 1000f) / distanceKm).toInt()
+    }
+
     private fun formatPace(elapsedMs: Long, distanceKm: Float): String {
-        if (distanceKm <= 0f || elapsedMs <= 0L) return "—"
-        val totalSeconds = elapsedMs / 1000
-        val secPerKm = (totalSeconds.toFloat() / distanceKm).toInt()
-        val minutes = secPerKm / 60
-        val seconds = secPerKm % 60
-        return String.format(Locale.getDefault(), "%d:%02d", minutes, seconds)
+        return formatSecPerKm(paceSeconds(elapsedMs, distanceKm))
     }
 
     private fun formatSecPerKm(sec: Int?): String {
         if (sec == null || sec <= 0) return "—"
-        val m = sec / 60
-        val s = sec % 60
-        return "%d:%02d/км".format(m, s)
+        val minutes = sec / 60
+        val seconds = sec % 60
+        return String.format(Locale.getDefault(), "%d:%02d/км", minutes, seconds)
+    }
+
+    private fun formatClock(totalSec: Int): String {
+        val hours = totalSec / 3600
+        val minutes = (totalSec % 3600) / 60
+        val seconds = totalSec % 60
+        return if (hours > 0) {
+            String.format(Locale.getDefault(), "%d:%02d:%02d", hours, minutes, seconds)
+        } else {
+            String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
+        }
+    }
+
+    private fun formatSignedClockDelta(deltaSec: Int): String {
+        val sign = if (deltaSec > 0) "+" else "−"
+        val abs = kotlin.math.abs(deltaSec)
+        return "$sign${formatClock(abs)}"
+    }
+
+    private fun formatSignedPaceDelta(deltaSec: Int): String {
+        val sign = if (deltaSec > 0) "+" else "−"
+        return "$sign${formatSecPerKm(kotlin.math.abs(deltaSec))}"
     }
 
     private fun saveHistoryList(list: List<WorkoutHistory>) {
@@ -64,9 +93,7 @@ class WorkoutHistoryAdapter(
         holder.bindExpandState()
     }
 
-    override fun getItemCount(): Int {
-        return workoutHistoryList.size
-    }
+    override fun getItemCount(): Int = workoutHistoryList.size
 
     private var recyclerView: RecyclerView? = null
 
@@ -81,21 +108,17 @@ class WorkoutHistoryAdapter(
     }
 
     inner class WorkoutViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        // Layouts
         private val headerLayout: ConstraintLayout = itemView.findViewById(R.id.history_header_layout)
         private val detailsLayout: LinearLayout = itemView.findViewById(R.id.history_details_layout)
 
-        // Header Views
         private val dateTextView: TextView = itemView.findViewById(R.id.history_date)
         private val targetTextView: TextView = itemView.findViewById(R.id.history_target)
         private val expandIcon: ImageView = itemView.findViewById(R.id.history_expand_icon)
         private val deleteButton: ImageButton = itemView.findViewById(R.id.history_delete)
 
-        // Details Views
-        private val actualDistanceText: TextView = itemView.findViewById(R.id.history_actual_distance)
-        private val actualTimeText: TextView = itemView.findViewById(R.id.history_actual_time)
-        private val actualPaceText: TextView = itemView.findViewById(R.id.history_actual_pace)
-        private val intervalStatsText: TextView = itemView.findViewById(R.id.history_interval_stats)
+        private val summaryContainer: LinearLayout = itemView.findViewById(R.id.history_summary_container)
+        private val segmentsTitle: TextView = itemView.findViewById(R.id.history_segments_title)
+        private val segmentsContainer: LinearLayout = itemView.findViewById(R.id.history_segments_container)
 
         var isExpanded = false
 
@@ -110,50 +133,163 @@ class WorkoutHistoryAdapter(
         }
 
         fun bind(workout: WorkoutHistory) {
-            // -- Header --
             dateTextView.text = workout.date
+            targetTextView.text = buildHeaderGoalText(workout)
 
-            // Format target text gracefully
-            val targetStr = when {
-                workout.targetDistanceKm != null -> String.format(Locale.getDefault(), "🎯 %.2f км", workout.targetDistanceKm)
-                workout.targetTimeSec != null -> {
-                    val m = workout.targetTimeSec / 60
-                    val s = workout.targetTimeSec % 60
-                    "🎯 %d:%02d".format(m, s)
-                }
-                else -> String.format(Locale.getDefault(), "🏃 %.2f км", workout.distance) // fallback logic for old
-            }
-            targetTextView.text = targetStr
+            bindDetails(workout)
 
-            // -- Details --
-            actualDistanceText.text = String.format(Locale.getDefault(), "🏃 %.2f км", workout.distance)
-            actualTimeText.text = "⏱ ${workout.time}"
-            actualPaceText.text = "⚡ ${formatPace(workout.elapsedMs, workout.distance)}"
-
-            // -- Interval Stats --
-            if ((workout.workoutMode == "interval" || workout.workoutMode == "combined") && workout.avgPaceWorkSec != null) {
-                intervalStatsText.visibility = View.VISIBLE
-                intervalStatsText.text = "📊 Работа: ${formatSecPerKm(workout.avgPaceWorkSec)} | 🚶‍♂️ Отдых: ${formatSecPerKm(workout.avgPaceRestSec)}"
-            } else {
-                intervalStatsText.visibility = View.GONE
-            }
-
-            // -- Click Listeners --
             headerLayout.setOnClickListener {
+                val position = bindingAdapterPosition
+                if (position == RecyclerView.NO_POSITION) return@setOnClickListener
                 isExpanded = !isExpanded
                 recyclerView?.let { rv ->
                     TransitionManager.beginDelayedTransition(rv, AutoTransition().apply { duration = 200 })
                 }
-                notifyItemChanged(adapterPosition, true)
+                notifyItemChanged(position, true)
             }
 
             deleteButton.setOnClickListener {
-                val position = adapterPosition
-                if (position != RecyclerView.NO_POSITION) {
-                    workoutHistoryList.removeAt(position)
-                    notifyItemRemoved(position)
-                    saveHistoryList(workoutHistoryList)
+                val position = bindingAdapterPosition
+                if (position == RecyclerView.NO_POSITION) return@setOnClickListener
+                workoutHistoryList.removeAt(position)
+                notifyItemRemoved(position)
+                saveHistoryList(workoutHistoryList)
+            }
+        }
+
+        private fun bindDetails(workout: WorkoutHistory) {
+            summaryContainer.removeAllViews()
+            segmentsContainer.removeAllViews()
+            segmentsTitle.visibility = View.GONE
+            segmentsContainer.visibility = View.GONE
+
+            when (workout.workoutMode) {
+                "interval" -> bindIntervalDetails(workout)
+                "combined" -> bindCombinedDetails(workout)
+                else -> bindNormalDetails(workout)
+            }
+        }
+
+        private fun bindNormalDetails(workout: WorkoutHistory) {
+            addSummaryLine("Фактическая дистанция: ${formatDistance(workout.distance)}")
+            addSummaryLine("Фактическое время: ${workout.time}")
+            addSummaryLine("Средний темп: ${formatPace(workout.elapsedMs, workout.distance)}")
+
+            buildNormalDeviation(workout)?.let {
+                addSummaryLine("Отклонение от цели: $it")
+            }
+        }
+
+        private fun bindIntervalDetails(workout: WorkoutHistory) {
+            addSummaryLine("От старта до стопа: ${formatDistance(workout.distance)}")
+            addSummaryLine("Общее время: ${workout.time}")
+            bindSegments(workout)
+        }
+
+        private fun bindCombinedDetails(workout: WorkoutHistory) {
+            addSummaryLine("От старта до стопа: ${formatDistance(workout.distance)}")
+            addSummaryLine("Общее время: ${workout.time}")
+            bindSegments(workout)
+        }
+
+        private fun bindSegments(workout: WorkoutHistory) {
+            val segments = workout.segmentDetails.orEmpty()
+            if (segments.isNotEmpty()) {
+                segmentsTitle.visibility = View.VISIBLE
+                segmentsContainer.visibility = View.VISIBLE
+                segments.forEach { segment ->
+                    addSegmentLine(buildSegmentLine(workout, segment))
                 }
+                return
+            }
+
+            if (workout.avgPaceWorkSec != null) {
+                addSummaryLine("Средний темп участков: ${formatSecPerKm(workout.avgPaceWorkSec)}")
+            }
+            addSummaryLine(
+                "Детализация по участкам недоступна для этой записи.",
+                secondary = true
+            )
+        }
+
+        private fun buildHeaderGoalText(workout: WorkoutHistory): String {
+            workout.goalLabel?.takeIf { it.isNotBlank() }?.let { return it }
+
+            return when (workout.workoutMode) {
+                "interval" -> "Интервальная"
+                "combined" -> "Комбо"
+                else -> {
+                    val parts = mutableListOf<String>()
+                    workout.targetDistanceKm?.takeIf { it > 0f }?.let { parts += formatDistance(it) }
+                    when {
+                        workout.normalGoalMode == 1 && workout.targetPaceSecPerKm != null ->
+                            parts += formatSecPerKm(workout.targetPaceSecPerKm)
+                        workout.targetTimeSec != null -> parts += formatClock(workout.targetTimeSec)
+                    }
+                    if (parts.isNotEmpty()) parts.joinToString(" • ")
+                    else formatDistance(workout.distance)
+                }
+            }
+        }
+
+        private fun buildNormalDeviation(workout: WorkoutHistory): String? {
+            return if (workout.normalGoalMode == 1 && workout.targetPaceSecPerKm != null) {
+                val actualPace = paceSeconds(workout.elapsedMs, workout.distance) ?: return null
+                formatSignedPaceDelta(actualPace - workout.targetPaceSecPerKm)
+            } else {
+                val targetTime = workout.targetTimeSec ?: return null
+                val actualTime = (workout.elapsedMs / 1000L).toInt().takeIf { it > 0 } ?: parseTimeToSec(workout.time)
+                formatSignedClockDelta(actualTime - targetTime)
+            }
+        }
+
+        private fun buildSegmentLine(workout: WorkoutHistory, segment: WorkoutHistorySegment): String {
+            val typeLabel = when {
+                workout.workoutMode == "combined" && segment.type == "PACE" -> "темповый"
+                workout.workoutMode == "combined" && segment.type == "WORK" -> "интервальный"
+                else -> null
+            }
+            val title = if (typeLabel != null) "${segment.title} ($typeLabel)" else segment.title
+            val parts = mutableListOf<String>()
+            segment.targetPaceSecPerKm?.let { parts += "цель ${formatSecPerKm(it)}" }
+            parts += "факт ${formatSecPerKm(segment.actualPaceSecPerKm)}"
+            parts += formatClock(segment.durationSec)
+            parts += formatDistance(segment.distanceKm)
+            return "$title: ${parts.joinToString(", ")}"
+        }
+
+        private fun addSummaryLine(text: String, secondary: Boolean = false) {
+            summaryContainer.addView(makeTextView(text, secondary = secondary, topMarginDp = if (summaryContainer.childCount == 0) 0 else 8))
+        }
+
+        private fun addSegmentLine(text: String) {
+            segmentsContainer.addView(makeTextView(text, secondary = false, topMarginDp = if (segmentsContainer.childCount == 0) 0 else 8))
+        }
+
+        private fun makeTextView(text: String, secondary: Boolean, topMarginDp: Int): TextView {
+            return TextView(context).apply {
+                this.text = text
+                textSize = 15f
+                setTextColor(if (secondary) secondaryTextColor else primaryTextColor)
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    topMargin = dp(topMarginDp)
+                }
+            }
+        }
+
+        private fun dp(value: Int): Int {
+            return (value * itemView.resources.displayMetrics.density).toInt()
+        }
+
+        private fun parseTimeToSec(value: String): Int {
+            val parts = value.split(":").mapNotNull { it.toIntOrNull() }
+            return when (parts.size) {
+                2 -> parts[0] * 60 + parts[1]
+                3 -> parts[0] * 3600 + parts[1] * 60 + parts[2]
+                else -> 0
             }
         }
     }

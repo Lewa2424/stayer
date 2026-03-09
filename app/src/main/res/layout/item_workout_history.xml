@@ -5,143 +5,119 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    app:cardElevation="2dp"
-    app:cardCornerRadius="12dp"
-    app:cardUseCompatPadding="true"
     android:layout_marginHorizontal="8dp"
     android:layout_marginTop="4dp"
-    android:layout_marginBottom="4dp">
+    android:layout_marginBottom="4dp"
+    app:cardCornerRadius="12dp"
+    app:cardElevation="2dp"
+    app:cardUseCompatPadding="true">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
-        <!-- HEADER (Always Visible) -->
         <androidx.constraintlayout.widget.ConstraintLayout
             android:id="@+id/history_header_layout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:padding="16dp"
-            android:background="?android:attr/selectableItemBackground">
+            android:background="?android:attr/selectableItemBackground"
+            android:padding="16dp">
 
             <TextView
                 android:id="@+id/history_date"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                tools:text="26 Февраля, 18:30"
-                android:textSize="14sp"
+                android:layout_marginEnd="16dp"
                 android:textColor="#757575"
+                android:textSize="14sp"
+                app:layout_constraintEnd_toStartOf="@+id/history_delete"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toTopOf="parent"
-                app:layout_constraintEnd_toStartOf="@+id/history_delete"
-                android:layout_marginEnd="16dp"/>
+                tools:text="06.03.26" />
 
             <TextView
                 android:id="@+id/history_target"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                tools:text="🎯 7.00 км"
+                android:layout_marginTop="4dp"
+                android:layout_marginEnd="16dp"
+                android:textColor="#212121"
                 android:textSize="18sp"
                 android:textStyle="bold"
-                android:textColor="#212121"
-                android:layout_marginTop="4dp"
+                app:layout_constraintEnd_toStartOf="@+id/history_expand_icon"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@id/history_date"
-                app:layout_constraintEnd_toStartOf="@+id/history_expand_icon"
-                android:layout_marginEnd="16dp"/>
+                tools:text="🎯 7.00 км • 50:00" />
 
             <ImageView
                 android:id="@+id/history_expand_icon"
                 android:layout_width="24dp"
                 android:layout_height="24dp"
+                android:layout_marginEnd="16dp"
                 android:src="@drawable/ic_arrow_drop_down"
-                app:tint="#757575"
+                app:layout_constraintBottom_toBottomOf="@id/history_target"
                 app:layout_constraintEnd_toStartOf="@+id/history_delete"
                 app:layout_constraintTop_toTopOf="@id/history_target"
-                app:layout_constraintBottom_toBottomOf="@id/history_target"
-                android:layout_marginEnd="16dp"/>
+                app:tint="#757575" />
 
             <ImageButton
                 android:id="@+id/history_delete"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
-                android:src="@android:drawable/ic_menu_delete"
-                android:contentDescription="@string/history_delete"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
-                app:tint="#D32F2F"
+                android:contentDescription="@string/history_delete"
+                android:src="@android:drawable/ic_menu_delete"
+                app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintTop_toTopOf="parent"
-                app:layout_constraintBottom_toBottomOf="parent"/>
+                app:tint="#D32F2F" />
 
         </androidx.constraintlayout.widget.ConstraintLayout>
 
-        <!-- DETAILS (Expandable, Default GONE) -->
         <LinearLayout
             android:id="@+id/history_details_layout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:background="#FAFAFA"
             android:orientation="vertical"
             android:paddingHorizontal="16dp"
             android:paddingBottom="16dp"
             android:visibility="gone"
-            tools:visibility="visible"
-            android:background="#FAFAFA">
+            tools:visibility="visible">
 
             <View
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
-                android:background="#E0E0E0"
-                android:layout_marginBottom="12dp"/>
+                android:layout_marginBottom="12dp"
+                android:background="#E0E0E0" />
 
-            <GridLayout
+            <LinearLayout
+                android:id="@+id/history_summary_container"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:columnCount="2"
-                android:rowCount="2">
+                android:orientation="vertical" />
 
-                <TextView
-                    android:id="@+id/history_actual_distance"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_columnWeight="1"
-                    android:layout_marginBottom="8dp"
-                    tools:text="🏃 5.20 км"
-                    android:textSize="15sp"
-                    android:textColor="#424242"/>
-
-                <TextView
-                    android:id="@+id/history_actual_time"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_columnWeight="1"
-                    android:layout_marginBottom="8dp"
-                    tools:text="⏱ 35:10"
-                    android:textSize="15sp"
-                    android:textColor="#424242"/>
-
-                <TextView
-                    android:id="@+id/history_actual_pace"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_columnWeight="1"
-                    tools:text="⚡ 6:45/км"
-                    android:textSize="15sp"
-                    android:textColor="#424242"/>
-
-            </GridLayout>
-
-            <!-- Mode-specific statistics (intervals/combo) -->
             <TextView
-                android:id="@+id/history_interval_stats"
+                android:id="@+id/history_segments_title"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
-                tools:text="📊 Работа: 5:30/км | 🚶‍♂️ Отдых: 8:00/км"
-                android:textSize="14sp"
+                android:text="Участки"
                 android:textColor="#616161"
+                android:textSize="14sp"
+                android:textStyle="bold"
                 android:visibility="gone"
-                tools:visibility="visible"/>
+                tools:visibility="visible" />
+
+            <LinearLayout
+                android:id="@+id/history_segments_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:orientation="vertical"
+                android:visibility="gone"
+                tools:visibility="visible" />
 
         </LinearLayout>
     </LinearLayout>

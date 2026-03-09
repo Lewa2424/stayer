@@ -29,7 +29,7 @@ class CadenceFallbackEngine(private val context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("StepCalibrationProfile", Context.MODE_PRIVATE)
 
     // --- Constants ---
-    private val REQUIRED_STABLE_TICKS_FOR_CALIBRATION = 30
+    private val REQUIRED_STABLE_TICKS_FOR_CALIBRATION = 60
     private val MAX_TICKS_WITHOUT_GPS = 7
     private val QUARANTINE_DURATION_TICKS = 3
 
@@ -135,7 +135,11 @@ class CadenceFallbackEngine(private val context: Context) {
                         
                         // Sanity check: stride should be somewhat realistic (0.3m to 1.5m)
                         if (observedStride in 0.3..1.5) {
-                            calibrateStrideLength(avgCadence, observedStride)
+                            // Cap at 115% of bucket default to prevent GPS noise inflation
+                            val bucketDefault = getDefaultStrideForBucket(getBucketKeyForCadence(avgCadence))
+                            val maxStride = bucketDefault * 1.15
+                            val cappedStride = observedStride.coerceAtMost(maxStride)
+                            calibrateStrideLength(avgCadence, cappedStride)
                         }
                     }
                     

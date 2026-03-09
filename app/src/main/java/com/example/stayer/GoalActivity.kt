@@ -112,7 +112,7 @@ class GoalActivity : AppCompatActivity() {
         }
 
         // Настройка Spinner для режима тренировки
-        val prefs = getSharedPreferences("Goals", MODE_PRIVATE)
+        val prefs = getSharedPreferences(PREFS_GOALS, MODE_PRIVATE)
         val spWorkoutMode = findViewById<Spinner>(R.id.spWorkoutMode)
 
         // Ссылки на блоки режимов
@@ -128,14 +128,13 @@ class GoalActivity : AppCompatActivity() {
         }
 
         // Восстановить сохранённый выбор
-        val savedMode = prefs.getInt(WORKOUT_MODE, 0)
+        val savedMode = WorkoutGoalStore.load(prefs).workoutMode
         spWorkoutMode.setSelection(savedMode)
         applyMode(savedMode)
 
         // Сохранять при изменении
         spWorkoutMode.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>, view: View?, position: Int, id: Long) {
-                prefs.edit().putInt(WORKOUT_MODE, position).apply()
                 applyMode(position)
             }
             override fun onNothingSelected(parent: AdapterView<*>) {}
@@ -173,9 +172,20 @@ class GoalActivity : AppCompatActivity() {
             val distance = distanceInput.text.toString()
             if (distance.isNotEmpty()) {
                 // Сохраняем дистанцию в SharedPreferences
-                getSharedPreferences("Goals", MODE_PRIVATE).edit {
-                    putString("TARGET_DISTANCE", distance)
+                val distanceKm = distance.trim().replace(',', '.').toFloatOrNull()
+                if (distanceKm == null || distanceKm <= 0f) {
+                    Toast.makeText(this, "Введите корректную дистанцию", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
                 }
+                val savedGoal = WorkoutGoalStore.load(prefs)
+                val normalGoal = if (savedGoal.workoutMode == 0) savedGoal else ActiveWorkoutGoal(workoutMode = 0)
+                WorkoutGoalStore.save(
+                    prefs,
+                    normalGoal.copy(
+                        workoutMode = 0,
+                        targetDistanceKm = distanceKm
+                    )
+                )
                 Toast.makeText(this, "Дистанция сохранена", Toast.LENGTH_SHORT).show()
             } else {
                 Toast.makeText(this, "Введите целевую дистанцию", Toast.LENGTH_SHORT).show()
@@ -198,12 +208,16 @@ class GoalActivity : AppCompatActivity() {
 
             val paceSec = (timeSec.toDouble() / dist).toInt()
 
-            prefs.edit()
-                .putFloat(TARGET_DISTANCE_KM, dist.toFloat())
-                .putInt(TARGET_TIME_SEC, timeSec)
-                .putInt(TARGET_PACE_SEC_PER_KM, paceSec)
-                .putInt(NORMAL_GOAL_MODE, 0)
-                .apply()
+            WorkoutGoalStore.save(
+                prefs,
+                ActiveWorkoutGoal(
+                    workoutMode = 0,
+                    normalGoalMode = 0,
+                    targetDistanceKm = dist.toFloat(),
+                    targetTimeSec = timeSec,
+                    targetPaceSecPerKm = paceSec
+                )
+            )
 
             tvNormalDerived.text = "✓ Сохранено. Расчётный темп: ${formatPace(paceSec)}/км"
             Toast.makeText(this, "Цель сохранена", Toast.LENGTH_SHORT).show()
@@ -225,12 +239,16 @@ class GoalActivity : AppCompatActivity() {
 
             val timeSec = (paceSec.toDouble() * dist).toInt()
 
-            prefs.edit()
-                .putFloat(TARGET_DISTANCE_KM, dist.toFloat())
-                .putInt(TARGET_TIME_SEC, timeSec)
-                .putInt(TARGET_PACE_SEC_PER_KM, paceSec)
-                .putInt(NORMAL_GOAL_MODE, 1)
-                .apply()
+            WorkoutGoalStore.save(
+                prefs,
+                ActiveWorkoutGoal(
+                    workoutMode = 0,
+                    normalGoalMode = 1,
+                    targetDistanceKm = dist.toFloat(),
+                    targetTimeSec = timeSec,
+                    targetPaceSecPerKm = paceSec
+                )
+            )
 
             tvNormalDerived.text = "✓ Сохранено. Расчётное время: ${formatTime(timeSec)}"
             Toast.makeText(this, "Цель сохранена", Toast.LENGTH_SHORT).show()
@@ -249,10 +267,13 @@ class GoalActivity : AppCompatActivity() {
             }
 
             val json = gson.toJson(scenario)
-            prefs.edit()
-                .putInt(WORKOUT_MODE, 1)
-                .putString(INTERVAL_SCENARIO_JSON, json)
-                .apply()
+            WorkoutGoalStore.save(
+                prefs,
+                ActiveWorkoutGoal(
+                    workoutMode = 1,
+                    intervalScenarioJson = json
+                )
+            )
 
             val totalSec = scenario.segments.sumOf { it.durationSec }
             tvIntervalSummary.setTextColor(0xFF4CAF50.toInt()) // green
@@ -292,10 +313,13 @@ class GoalActivity : AppCompatActivity() {
             }
             val scenario = ComboScenario(blocks)
             val cJson = comboGson().toJson(scenario)
-            prefs.edit()
-                .putInt(WORKOUT_MODE, 2)
-                .putString(COMBO_SCENARIO_JSON, cJson)
-                .apply()
+            WorkoutGoalStore.save(
+                prefs,
+                ActiveWorkoutGoal(
+                    workoutMode = 2,
+                    comboScenarioJson = cJson
+                )
+            )
 
             tvComboSummary.setTextColor(0xFF4CAF50.toInt())
             updateComboSummary(tvComboSummary, blocks, saved = true)

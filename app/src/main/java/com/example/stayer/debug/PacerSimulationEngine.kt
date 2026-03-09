@@ -1,4 +1,4 @@
-package com.example.stayer.debug
+﻿package com.example.stayer.debug
 
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,6 +26,9 @@ class PacerSimulationEngine(
     private var lastCheckDistM = 0.0
     private var lastCheckSec = 0
     private var pacerPraiseAlternate = false
+
+    // Smart Pace Corrector
+    private val paceCorrector = com.example.stayer.engine.PaceCorrectionManager()
 
     init {
         // Evaluate initial checkpoint correctly based on zero distance
@@ -70,6 +73,7 @@ class PacerSimulationEngine(
         lastEmergencyCheckKm = 0.0
         lastCheckpointProgress = GlobalProgress.ON_TRACK
         emergencyCooldownUntilKm = 0.0
+        paceCorrector.reset()
     }
 
     private var lastSegmentPace = 0
@@ -86,25 +90,32 @@ class PacerSimulationEngine(
         val distDeltaKm = simulationSpeedKmh * (timeMultiplier / 3600.0)
         var newDistKm = st.distanceKm + distDeltaKm
 
+        // Feed corrector using simulated elapsed time, not wall-clock batching
+        if (timeMultiplier > 0) {
+            paceCorrector.feedSample(distDeltaKm * 1000.0, timeMultiplier.toDouble())
+        }
+
         if (newDistKm >= targetDistanceKm) {
             pause()
             newDistKm = targetDistanceKm
-            ttsHelper.speak("Тренировка завершена. Симуляция остановлена.")
+            ttsHelper.speak("РўСЂРµРЅРёСЂРѕРІРєР° Р·Р°РІРµСЂС€РµРЅР°. РЎРёРјСѓР»СЏС†РёСЏ РѕСЃС‚Р°РЅРѕРІР»РµРЅР°.")
             _state.value = st.copy(
                 elapsedSec = newSec,
                 distanceKm = newDistKm,
                 currentPaceSecPerKm = if (simulationSpeedKmh > 0) (3600.0 / simulationSpeedKmh).toInt() else 0,
                 currentSpeedKmh = simulationSpeedKmh,
-                lastPrompt = "Тренировка завершена. Симуляция остановлена.",
-                lastPromptDeviation = "Завершено"
+                lastPrompt = "РўСЂРµРЅРёСЂРѕРІРєР° Р·Р°РІРµСЂС€РµРЅР°. РЎРёРјСѓР»СЏС†РёСЏ РѕСЃС‚Р°РЅРѕРІР»РµРЅР°.",
+                lastPromptDeviation = "Р—Р°РІРµСЂС€РµРЅРѕ"
             )
             return
         }
 
+        val simulatedNowMs = newSec * 1000L
+
         var prompt = st.lastPrompt
         var promptDev = st.lastPromptDeviation
 
-        // ─── Emergency 250m check ─────────────────────────────────────────────────
+        // в”Ђв”Ђв”Ђ Emergency 250m check в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
         if (newDistKm - lastEmergencyCheckKm >= 0.25) {
             lastEmergencyCheckKm = newDistKm
             val distToNextCheckpoint = nextCheckpointKm - newDistKm
@@ -120,21 +131,23 @@ class PacerSimulationEngine(
                 )
                 if (alert != null) {
                     prompt = alert
-                    promptDev = "⚠️ Аварийное уведомление"
+                    promptDev = "вљ пёЏ РђРІР°СЂРёР№РЅРѕРµ СѓРІРµРґРѕРјР»РµРЅРёРµ"
                     ttsHelper.speak(alert)
                     // Cooldown until the next planned checkpoint
                     emergencyCooldownUntilKm = nextCheckpointKm
+                    paceCorrector.triggerCooldown(simulatedNowMs)
                 }
             }
         }
 
-        // ─── Planned 10% checkpoint ───────────────────────────────────────────────
+        // в”Ђв”Ђв”Ђ Planned 10% checkpoint в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
         if (newDistKm >= nextCheckpointKm) {
             val result = evaluatePace(newDistKm * 1000.0, newSec)
             if (result != null) {
                 prompt = result.first
                 promptDev = result.second
                 ttsHelper.speak(prompt)
+                paceCorrector.triggerCooldown(simulatedNowMs)
             }
             // Update the last-known global progress for the emergency monitor
             val currentDistKm = newDistKm
@@ -149,6 +162,33 @@ class PacerSimulationEngine(
             }
             emergencyCooldownUntilKm = 0.0  // reset cooldown after each planned checkpoint
             nextCheckpointKm += calcStep(newDistKm)
+        }
+
+        // в”Ђв”Ђв”Ђ Smart Pace Corrector в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+        val remainDistKm = (targetDistanceKm - newDistKm).coerceAtLeast(0.01)
+        val targetTimeSec = (targetPaceSecPerKm * targetDistanceKm).roundToInt()
+        val timeLeftSec = targetTimeSec - newSec
+        val dynamicTarget = if (timeLeftSec > 0 && remainDistKm > 0.05) {
+            (timeLeftSec / remainDistKm).toInt()
+        } else {
+            targetPaceSecPerKm.toInt()
+        }
+
+        val distToCheckpoint = nextCheckpointKm - newDistKm
+        var shouldSilence = false
+        if (distToCheckpoint > 0.0 && dynamicTarget > 0) {
+            val secsToCheckpoint = (distToCheckpoint * dynamicTarget).toInt()
+            if (secsToCheckpoint < 30) shouldSilence = true
+        }
+
+        if (!shouldSilence && simulationSpeedKmh > 0.0) {
+            val suggestion = paceCorrector.maybeSuggest(dynamicTarget, simulatedNowMs)
+            if (suggestion != null) {
+                prompt = suggestion
+                promptDev = "рџ”§ РљРѕСЂСЂРµРєС‚РёСЂРѕРІС‰РёРє"
+                ttsHelper.speak(suggestion)
+                paceCorrector.triggerCooldown(simulatedNowMs)
+            }
         }
 
         _state.value = st.copy(
@@ -206,11 +246,12 @@ class PacerSimulationEngine(
         )
         pacerPraiseAlternate = nextPraise
 
-        val globalDevStr = if (finishDeltaSec > 0) "+$finishDeltaSec сек от графика"
-                           else if (finishDeltaSec < 0) "$finishDeltaSec сек (запас)"
-                           else "В графике"
-        val dev = "${if (diffSecPerKm > 0) "+" else ""}$diffSecPerKm сек/км (Глобально: $globalDevStr)"
+        val globalDevStr = if (finishDeltaSec > 0) "+$finishDeltaSec СЃРµРє РѕС‚ РіСЂР°С„РёРєР°"
+                           else if (finishDeltaSec < 0) "$finishDeltaSec СЃРµРє (Р·Р°РїР°СЃ)"
+                           else "Р’ РіСЂР°С„РёРєРµ"
+        val dev = "${if (diffSecPerKm > 0) "+" else ""}$diffSecPerKm СЃРµРє/РєРј (Р“Р»РѕР±Р°Р»СЊРЅРѕ: $globalDevStr)"
 
         return Pair(msg, dev)
     }
 }
+

@@ -1,4 +1,4 @@
-package com.example.stayer
+﻿package com.example.stayer
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -68,12 +68,20 @@ class WorkoutForegroundService : Service() {
         const val ACTION_START_OR_RESUME = "com.example.stayer.action.START_OR_RESUME"
         const val ACTION_PAUSE = "com.example.stayer.action.PAUSE"
         const val ACTION_STOP_AND_RESET = "com.example.stayer.action.STOP_AND_RESET"
+        const val ACTION_SAVE_ACK = "com.example.stayer.action.SAVE_ACK"
 
         const val ACTION_BROADCAST_UPDATE = "com.example.stayer.action.WORKOUT_UPDATE"
         const val EXTRA_DISTANCE_KM = "extra_distance_km"
         const val EXTRA_ELAPSED_MS = "extra_elapsed_ms"
         const val EXTRA_IS_RUNNING = "extra_is_running"
         const val EXTRA_IS_PAUSED = "extra_is_paused"
+
+        const val ACTION_BROADCAST_FINAL_SNAPSHOT = "com.example.stayer.action.FINAL_SNAPSHOT"
+        const val EXTRA_SNAPSHOT_JSON = "extra_snapshot_json"
+        
+        private const val PREFS_PENDING_SNAPSHOT = "PendingSnapshot"
+        private const val KEY_PENDING_SNAPSHOT_JSON = "PENDING_SNAPSHOT_JSON"
+        private const val KEY_PENDING_SNAPSHOT_TIMESTAMP = "PENDING_SNAPSHOT_TIMESTAMP"
 
         fun startOrResume(context: Context) {
             val intent = Intent(context, WorkoutForegroundService::class.java).apply {
@@ -95,13 +103,20 @@ class WorkoutForegroundService : Service() {
             }
             context.startService(intent)
         }
+        
+        fun sendSaveAck(context: Context) {
+            val intent = Intent(context, WorkoutForegroundService::class.java).apply {
+                action = ACTION_SAVE_ACK
+            }
+            context.startService(intent)
+        }
     }
 
     private val fusedLocationClient by lazy { LocationServices.getFusedLocationProviderClient(this) }
     private var locationCallback: LocationCallback? = null
     private var lastAcceptedRawLocation: Location? = null
     private var lastSmoothedLocation: Location? = null
-    // Уменьшено окно сглаживания с 7 до 3 для снижения эффекта "срезания углов" на поворотах
+    // РЈРјРµРЅСЊС€РµРЅРѕ РѕРєРЅРѕ СЃРіР»Р°Р¶РёРІР°РЅРёСЏ СЃ 7 РґРѕ 3 РґР»СЏ СЃРЅРёР¶РµРЅРёСЏ СЌС„С„РµРєС‚Р° "СЃСЂРµР·Р°РЅРёСЏ СѓРіР»РѕРІ" РЅР° РїРѕРІРѕСЂРѕС‚Р°С…
     private val smoother = LocationSmoother(windowSize = 3)
 
     private val tickHandler = Handler(Looper.getMainLooper())
@@ -148,6 +163,9 @@ class WorkoutForegroundService : Service() {
     private val stableDeltasM: ArrayDeque<Double> = ArrayDeque()
     private var lastTickDistanceM = 0.0
 
+    // Smart Pace Corrector (30-sec rolling window)
+    private val paceCorrector = com.example.stayer.engine.PaceCorrectionManager()
+
     // Phase accumulators for history stats (distance in meters, time in seconds)
     private var accumWorkDistM = 0.0
     private var accumWorkTimeSec = 0
@@ -158,6 +176,9 @@ class WorkoutForegroundService : Service() {
     private var accumCooldownDistM = 0.0
     private var accumCooldownTimeSec = 0
     private var segmentStartDistanceM = 0.0
+    private var activeWorkoutModeInt = 0
+    private val completedHistorySegments = mutableListOf<WorkoutHistorySegment>()
+    private var nextHistorySegmentNumber = 1
 
     // Normal mode Pacer state
     private var lastPacerCheckpointDistanceM = 0.0
@@ -210,6 +231,9 @@ class WorkoutForegroundService : Service() {
 
         createNotificationChannel()
         restoreState()
+        
+        // РљР РРўРР§Р•РЎРљР Р’РђР–РќРћ: РїСЂРѕРІРµСЂСЏРµРј pending snapshot РїСЂРё СЃС‚Р°СЂС‚Рµ
+        checkAndRestorePendingSnapshot()
 
         textToSpeech = TextToSpeech(this) { status ->
             if (status == TextToSpeech.SUCCESS) {
@@ -221,7 +245,7 @@ class WorkoutForegroundService : Service() {
             }
         }
 
-        // Важно: для TTS поверх музыки
+        // Р’Р°Р¶РЅРѕ: РґР»СЏ TTS РїРѕРІРµСЂС… РјСѓР·С‹РєРё
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             textToSpeech.setAudioAttributes(
                 AudioAttributes.Builder()
@@ -239,17 +263,18 @@ class WorkoutForegroundService : Service() {
             ACTION_START_OR_RESUME -> handleStartOrResume()
             ACTION_PAUSE -> handlePause()
             ACTION_STOP_AND_RESET -> handleStopAndReset()
+            ACTION_SAVE_ACK -> handleSaveAck()
         }
         return START_STICKY
     }
 
     private fun handleStartOrResume() {
-        // Старт foreground сразу, чтобы Android не убил сервис за таймаут
+        // РЎС‚Р°СЂС‚ foreground СЃСЂР°Р·Сѓ, С‡С‚РѕР±С‹ Android РЅРµ СѓР±РёР» СЃРµСЂРІРёСЃ Р·Р° С‚Р°Р№РјР°СѓС‚
         startForeground(NOTIFICATION_ID, buildNotification())
 
         if (!wakeLock.isHeld) {
-            // На время тренировки держим CPU живым (иначе Doze может жёстко резать апдейты)
-            wakeLock.acquire(10 * 60 * 60 * 1000L) // 10 часов максимум (manual stop/reset)
+            // РќР° РІСЂРµРјСЏ С‚СЂРµРЅРёСЂРѕРІРєРё РґРµСЂР¶РёРј CPU Р¶РёРІС‹Рј (РёРЅР°С‡Рµ Doze РјРѕР¶РµС‚ Р¶С‘СЃС‚РєРѕ СЂРµР·Р°С‚СЊ Р°РїРґРµР№С‚С‹)
+            wakeLock.acquire(10 * 60 * 60 * 1000L) // 10 С‡Р°СЃРѕРІ РјР°РєСЃРёРјСѓРј (manual stop/reset)
         }
 
         val now = System.currentTimeMillis()
@@ -259,10 +284,11 @@ class WorkoutForegroundService : Service() {
             startTimeMs = if (startTimeMs == 0L) now else startTimeMs
             pausedAtMs = 0L
             goalReached = false
-            // При новом старте точку инициализируем с нуля, чтобы не было скачка
+            // РџСЂРё РЅРѕРІРѕРј СЃС‚Р°СЂС‚Рµ С‚РѕС‡РєСѓ РёРЅРёС†РёР°Р»РёР·РёСЂСѓРµРј СЃ РЅСѓР»СЏ, С‡С‚РѕР±С‹ РЅРµ Р±С‹Р»Рѕ СЃРєР°С‡РєР°
             resetTrackState()
+            paceCorrector.reset()
             
-            // Начинаем новый GPX лог
+            // РќР°С‡РёРЅР°РµРј РЅРѕРІС‹Р№ GPX Р»РѕРі
             initGpxLog()
 
             // Load interval scenario on fresh start
@@ -273,8 +299,9 @@ class WorkoutForegroundService : Service() {
                 totalPausedMs += (now - pausedAtMs)
             }
             pausedAtMs = 0L
-            // Важно: после паузы сбрасываем lastLocation, иначе будет скачок
+            // Р’Р°Р¶РЅРѕ: РїРѕСЃР»Рµ РїР°СѓР·С‹ СЃР±СЂР°СЃС‹РІР°РµРј lastLocation, РёРЅР°С‡Рµ Р±СѓРґРµС‚ СЃРєР°С‡РѕРє
             resetTrackState()
+            paceCorrector.reset()
         }
 
         persistState()
@@ -295,6 +322,7 @@ class WorkoutForegroundService : Service() {
         isPaused = true
         pausedAtMs = System.currentTimeMillis()
         resetTrackState()
+        paceCorrector.reset()
 
         stopLocationUpdates()
         sensorManager.unregisterListener(stepListener)
@@ -305,6 +333,70 @@ class WorkoutForegroundService : Service() {
     }
 
     private fun handleStopAndReset() {
+        writeLog("SERVICE: handleStopAndReset called - building final snapshot BEFORE reset")
+        
+        // 1. РЎРќРђР§РђР›Рђ С„РѕСЂРјРёСЂСѓРµРј С„РёРЅР°Р»СЊРЅС‹Р№ snapshot Р”Рћ Р»СЋР±РѕРіРѕ СЃР±СЂРѕСЃР°
+        val finalSnapshot = buildFinalSnapshot()
+        
+        // 2. Р›РѕРіРёСЂСѓРµРј Рё РїСЂРѕРІРµСЂСЏРµРј РІР°Р»РёРґРЅРѕСЃС‚СЊ
+        if (!finalSnapshot.isValid()) {
+            writeLog("WORKOUT_SAVE_ABORTED_INVALID_SNAPSHOT: distance=${finalSnapshot.distanceKm}, elapsed=${finalSnapshot.elapsedMs}")
+            // РќРµРІР°Р»РёРґРЅР°СЏ С‚СЂРµРЅРёСЂРѕРІРєР° - СЃСЂР°Р·Сѓ РґРµР»Р°РµРј РїРѕР»РЅС‹Р№ reset
+            performFullReset()
+            return
+        }
+        
+        writeLog("WORKOUT_SNAPSHOT_CREATED: distance=${finalSnapshot.distanceKm}km, elapsed=${finalSnapshot.elapsedMs}ms")
+        
+        // 3. РљР РРўРР§Р•РЎРљР Р’РђР–РќРћ: РЎРѕС…СЂР°РЅСЏРµРј snapshot Р’ РќРђР”РЃР–РќРћР• РҐР РђРќРР›РР©Р• РґРѕ reset'Р°
+        savePendingSnapshot(finalSnapshot)
+        
+        // 4. Service РЎРђРњ СЃРѕС…СЂР°РЅСЏРµС‚ РёСЃС‚РѕСЂРёСЋ (РЅРµ Р·Р°РІРёСЃРёС‚ РѕС‚ Activity)
+        val saved = saveWorkoutHistoryFromSnapshot(finalSnapshot)
+        
+        if (saved) {
+            writeLog("SERVICE_HISTORY_SAVED: workout saved by Service directly")
+            
+            // 5. РћС‚РїСЂР°РІР»СЏРµРј snapshot РІ Activity РґР»СЏ РѕР±РЅРѕРІР»РµРЅРёСЏ UI (РѕРїС†РёРѕРЅР°Р»СЊРЅРѕ)
+            // Activity РјРѕР¶РµС‚ РїРѕРєР°Р·Р°С‚СЊ Toast РёР»Рё РѕР±РЅРѕРІРёС‚СЊ СЃРїРёСЃРѕРє, РЅРѕ РќР• РѕР±СЏР·Р°РЅР° СЃРѕС…СЂР°РЅСЏС‚СЊ
+            broadcastFinalSnapshot(finalSnapshot)
+            
+            // 6. Р–РґС‘Рј ACK РѕС‚ Activity СЃ С‚Р°Р№РјР°СѓС‚РѕРј
+            // Р•СЃР»Рё ACK РЅРµ РїСЂРёРґС‘С‚ Р·Р° 3 СЃРµРєСѓРЅРґС‹ - РїСЂРѕРґРѕР»Р¶Р°РµРј reset СЃР°РјРѕСЃС‚РѕСЏС‚РµР»СЊРЅРѕ
+            scheduleResetWithTimeout()
+        } else {
+            writeLog("ERROR: Service failed to save history, keeping snapshot in pending storage")
+            // Snapshot РѕСЃС‚Р°С‘С‚СЃСЏ РІ pending storage, РїРѕРїСЂРѕР±СѓРµРј РІРѕСЃСЃС‚Р°РЅРѕРІРёС‚СЊ РїСЂРё СЃР»РµРґСѓСЋС‰РµРј Р·Р°РїСѓСЃРєРµ
+            performFullReset()
+        }
+    }
+    
+    private fun handleSaveAck() {
+        writeLog("SERVICE: Received SAVE_ACK from Activity")
+        cancelResetTimeout()
+        performFullReset()
+    }
+    
+    private var resetTimeoutRunnable: Runnable? = null
+    
+    private fun scheduleResetWithTimeout() {
+        resetTimeoutRunnable = Runnable {
+            writeLog("SERVICE: Reset timeout reached, proceeding with reset")
+            performFullReset()
+        }
+        tickHandler.postDelayed(resetTimeoutRunnable!!, 3000)
+    }
+    
+    private fun cancelResetTimeout() {
+        resetTimeoutRunnable?.let {
+            tickHandler.removeCallbacks(it)
+            resetTimeoutRunnable = null
+        }
+    }
+    
+    private fun performFullReset() {
+        writeLog("SERVICE: Performing full reset")
+        
         stopLocationUpdates()
         stopTicking()
 
@@ -321,6 +413,9 @@ class WorkoutForegroundService : Service() {
         lastPacerCheckpointDistanceM = 0.0
         lastPacerCheckpointElapsedSec = 0
         pacerPraiseAlternate = false
+        activeWorkoutModeInt = 0
+        completedHistorySegments.clear()
+        nextHistorySegmentNumber = 1
 
         resetTrackState()
         closeGpxLog()
@@ -331,6 +426,11 @@ class WorkoutForegroundService : Service() {
 
         persistState()
         broadcastUpdate()
+        
+        // РћС‡РёС‰Р°РµРј pending snapshot РўРћР›Р¬РљРћ РїРѕСЃР»Рµ СѓСЃРїРµС€РЅРѕРіРѕ reset
+        clearPendingSnapshot()
+        
+        writeLog("WORKOUT_RESET_DONE")
 
         if (wakeLock.isHeld) wakeLock.release()
 
@@ -361,13 +461,23 @@ class WorkoutForegroundService : Service() {
                         totalDistanceKm += (fallbackDistM.toFloat() / 1000f)
                     }
 
-                    // 2. Таймер и нотификация должны обновляться независимо от частоты GPS-точек
+                    // 2. РўР°Р№РјРµСЂ Рё РЅРѕС‚РёС„РёРєР°С†РёСЏ РґРѕР»Р¶РЅС‹ РѕР±РЅРѕРІР»СЏС‚СЊСЃСЏ РЅРµР·Р°РІРёСЃРёРјРѕ РѕС‚ С‡Р°СЃС‚РѕС‚С‹ GPS-С‚РѕС‡РµРє
                     broadcastUpdate()
                     updateNotification()
+
+                    // 3. Pace Corrector: fallback is the source of truth only outside STABLE GPS mode
+                    if (fallbackEngine.currentState != CadenceFallbackEngine.State.STABLE) {
+                        paceCorrector.feedSample(fallbackDistM, 1.0)
+                    }
+
+                    // 4. Normal-mode corrector suggestion
+                    maybePaceCorrectorNormal(totalDistanceKm)
+
+                    // 5. Interval logic
                     handleIntervalTick()
                     tickHandler.postDelayed(this, 1000L)
                 } else if (isRunning) {
-                    // Paused — still tick for timer display but skip interval logic
+                    // Paused вЂ” still tick for timer display but skip interval logic
                     broadcastUpdate()
                     updateNotification()
                     tickHandler.postDelayed(this, 1000L)
@@ -393,13 +503,13 @@ class WorkoutForegroundService : Service() {
         val minutes = (elapsedMs / (1000 * 60)) % 60
         val hours = (elapsedMs / (1000 * 60 * 60))
         val timeText = String.format(Locale.getDefault(), "%02d:%02d:%02d", hours, minutes, seconds)
-        val distanceText = String.format(Locale.getDefault(), "%.2f км", totalDistanceKm)
-        val stateText = if (!isRunning) "Остановлено" else if (isPaused) "Пауза" else "Идёт"
+        val distanceText = String.format(Locale.getDefault(), "%.2f РєРј", totalDistanceKm)
+        val stateText = if (!isRunning) "РћСЃС‚Р°РЅРѕРІР»РµРЅРѕ" else if (isPaused) "РџР°СѓР·Р°" else "РРґС‘С‚"
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("Тренировка: $stateText")
-            .setContentText("$timeText • $distanceText")
+            .setContentTitle("РўСЂРµРЅРёСЂРѕРІРєР°: $stateText")
+            .setContentText("$timeText вЂў $distanceText")
             .setOngoing(isRunning && !isPaused)
             .setOnlyAlertOnce(true)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
@@ -482,22 +592,32 @@ class WorkoutForegroundService : Service() {
         return (now - startTimeMs - effectivePausedMs).coerceAtLeast(0L)
     }
 
+    private fun loadActiveGoal(): ActiveWorkoutGoal {
+        val prefs = getSharedPreferences("Goals", MODE_PRIVATE)
+        return WorkoutGoalStore.load(prefs)
+    }
+
+    private fun loadNormalGoal(): ActiveWorkoutGoal? {
+        val goal = loadActiveGoal()
+        return goal.takeIf { it.workoutMode == 0 }
+    }
+
     @SuppressLint("MissingPermission")
     private fun startLocationUpdates() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED
         ) {
-            // Нет прав — не падаем, просто остаёмся в foreground без трекинга
+            // РќРµС‚ РїСЂР°РІ вЂ” РЅРµ РїР°РґР°РµРј, РїСЂРѕСЃС‚Рѕ РѕСЃС‚Р°С‘РјСЃСЏ РІ foreground Р±РµР· С‚СЂРµРєРёРЅРіР°
             return
         }
 
         if (locationCallback != null) return
 
-        // Максимум качества со стороны Fused:
-        // - частые точки
-        // - без пакетирования (maxDelay=0)
-        // - minDistance=0 (фильтруем ниже сами)
-        // - waitForAccurateLocation=true (просим дождаться точности)
+        // РњР°РєСЃРёРјСѓРј РєР°С‡РµСЃС‚РІР° СЃРѕ СЃС‚РѕСЂРѕРЅС‹ Fused:
+        // - С‡Р°СЃС‚С‹Рµ С‚РѕС‡РєРё
+        // - Р±РµР· РїР°РєРµС‚РёСЂРѕРІР°РЅРёСЏ (maxDelay=0)
+        // - minDistance=0 (С„РёР»СЊС‚СЂСѓРµРј РЅРёР¶Рµ СЃР°РјРё)
+        // - waitForAccurateLocation=true (РїСЂРѕСЃРёРј РґРѕР¶РґР°С‚СЊСЃСЏ С‚РѕС‡РЅРѕСЃС‚Рё)
         val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000L)
             .setMinUpdateIntervalMillis(500L)
             .setMaxUpdateDelayMillis(0L)
@@ -530,6 +650,11 @@ class WorkoutForegroundService : Service() {
             logGpxPoint(location, null)
             val smoothed = smoother.addAndGetSmoothed(location)
             lastSmoothedLocation = smoothed
+            paceCorrector.feedGpsPoint(
+                latDeg = smoothed.latitude,
+                lonDeg = smoothed.longitude,
+                elapsedSec = currentElapsedMs() / 1000.0
+            )
             return
         }
 
@@ -538,19 +663,28 @@ class WorkoutForegroundService : Service() {
 
         if (rejectReason != null) {
             fallbackEngine.processGpsRejected(rejectReason)
-            // Если точки не будет 7 секунд, движок сам мягко уйдет в BLIND через ticksSinceLastGps.
+            // Р•СЃР»Рё С‚РѕС‡РєРё РЅРµ Р±СѓРґРµС‚ 7 СЃРµРєСѓРЅРґ, РґРІРёР¶РѕРє СЃР°Рј РјСЏРіРєРѕ СѓР№РґРµС‚ РІ BLIND С‡РµСЂРµР· ticksSinceLastGps.
             return
         }
 
         lastAcceptedRawLocation = location
         val smoothed = smoother.addAndGetSmoothed(location)
+        paceCorrector.feedGpsPoint(
+            latDeg = smoothed.latitude,
+            lonDeg = smoothed.longitude,
+            elapsedSec = currentElapsedMs() / 1000.0
+        )
         val prevSmoothed = lastSmoothedLocation
         if (prevSmoothed != null) {
             val rawDeltaM = prevSmoothed.distanceTo(smoothed).toDouble()
             if (rawDeltaM > 0.0) {
                 val acceptedDistM = fallbackEngine.processGpsAccepted(rawDeltaM)
+                val deltaTimeSec = ((location.elapsedRealtimeNanos - prev.elapsedRealtimeNanos) / 1_000_000_000.0)
                 if (acceptedDistM > 0.0) {
                     totalDistanceKm += (acceptedDistM.toFloat() / 1000f)
+                    if (fallbackEngine.currentState == CadenceFallbackEngine.State.STABLE && deltaTimeSec > 0.0) {
+                        paceCorrector.feedSample(acceptedDistM, deltaTimeSec)
+                    }
                 }
             }
         }
@@ -566,30 +700,22 @@ class WorkoutForegroundService : Service() {
     }
 
     /**
-     * Авто-пауза по достижению цели дистанции.
-     * ВАЖНО: сейчас считаем по GPS-дистанции сервиса (источник истины). Шаги Activity сюда не входят.
+     * РђРІС‚Рѕ-РїР°СѓР·Р° РїРѕ РґРѕСЃС‚РёР¶РµРЅРёСЋ С†РµР»Рё РґРёСЃС‚Р°РЅС†РёРё.
+     * Р’РђР–РќРћ: СЃРµР№С‡Р°СЃ СЃС‡РёС‚Р°РµРј РїРѕ GPS-РґРёСЃС‚Р°РЅС†РёРё СЃРµСЂРІРёСЃР° (РёСЃС‚РѕС‡РЅРёРє РёСЃС‚РёРЅС‹). РЁР°РіРё Activity СЃСЋРґР° РЅРµ РІС…РѕРґСЏС‚.
      */
     private fun maybeAutoPauseOnTarget(currentDistanceKm: Float) {
         if (!isRunning || isPaused || goalReached) return
 
-        val goals = getSharedPreferences("Goals", MODE_PRIVATE)
-        
-        // 1) Try new float key
-        val targetDistanceKm = if (goals.contains(TARGET_DISTANCE_KM)) {
-            goals.getFloat(TARGET_DISTANCE_KM, 0f)
-        } else {
-            // 2) Fallback to old string key
-            val targetDistanceStr = goals.getString("TARGET_DISTANCE", "0") ?: "0"
-            targetDistanceStr.replace(',', '.').toFloatOrNull() ?: 0f
-        }
-        
+        val goal = loadNormalGoal() ?: return
+        val targetDistanceKm = goal.targetDistanceKm ?: 0f
         if (targetDistanceKm <= 0f) return
 
-        // Небольшая дельта, чтобы не зависеть от плавающей точки и округлений.
+        // РќРµР±РѕР»СЊС€Р°СЏ РґРµР»СЊС‚Р°, С‡С‚РѕР±С‹ РЅРµ Р·Р°РІРёСЃРµС‚СЊ РѕС‚ РїР»Р°РІР°СЋС‰РµР№ С‚РѕС‡РєРё Рё РѕРєСЂСѓРіР»РµРЅРёР№.
         val epsilon = 0.001f
         if (currentDistanceKm + epsilon >= targetDistanceKm) {
             goalReached = true
-            speak("Цель достигнута. Тренировка поставлена на паузу.")
+            val cond = "Р”РёСЃС‚Р°РЅС†РёСЏ РґРѕСЃС‚РёРіР»Р° С†РµР»РµРІРѕР№. РўРµРєСѓС‰Р°СЏ: ${String.format("%.2f", currentDistanceKm)} РєРј, Р¦РµР»СЊ: ${targetDistanceKm} РєРј"
+            speak("Р¦РµР»СЊ РґРѕСЃС‚РёРіРЅСѓС‚Р°. РўСЂРµРЅРёСЂРѕРІРєР° РїРѕСЃС‚Р°РІР»РµРЅР° РЅР° РїР°СѓР·Сѓ.", cond)
             handlePause()
         }
     }
@@ -598,20 +724,20 @@ class WorkoutForegroundService : Service() {
         val dtSec = ((cur.elapsedRealtimeNanos - prev.elapsedRealtimeNanos) / 1_000_000_000.0).toFloat()
         if (dtSec <= 0.2f) return "Too frequent (${String.format("%.2f", dtSec)}s)"
 
-        // 1) точность
+        // 1) С‚РѕС‡РЅРѕСЃС‚СЊ
         val acc = if (cur.hasAccuracy()) cur.accuracy else Float.MAX_VALUE
-        if (acc > 40f) return "Bad accuracy (${String.format("%.1f", acc)}m)" // 40м мягче (для РЭБ)
+        if (acc > 40f) return "Bad accuracy (${String.format("%.1f", acc)}m)" // 40Рј РјСЏРіС‡Рµ (РґР»СЏ Р Р­Р‘)
 
-        // 2) дистанция
+        // 2) РґРёСЃС‚Р°РЅС†РёСЏ
         val d = prev.distanceTo(cur)
-        if (d < 0.2f) return "Too close (${String.format("%.1f", d)}m)" // отсекаем только "стояночный дрейф" (меньше полуметра)
+        if (d < 0.2f) return "Too close (${String.format("%.1f", d)}m)" // РѕС‚СЃРµРєР°РµРј С‚РѕР»СЊРєРѕ "СЃС‚РѕСЏРЅРѕС‡РЅС‹Р№ РґСЂРµР№С„" (РјРµРЅСЊС€Рµ РїРѕР»СѓРјРµС‚СЂР°)
 
-        // 3) скорость
+        // 3) СЃРєРѕСЂРѕСЃС‚СЊ
         val v = d / dtSec // m/s
-        if (v < 0.15f) return "Too slow (${String.format("%.1f", v)}m/s)" // "стою/шум"
-        if (v > 12.0f) return "Too fast (${String.format("%.1f", v)}m/s) (Teleport)" // "телепорт/глюк" (увеличено с 7.5 до 12.0 м/с для быстрых рывков GPS)
+        if (v < 0.15f) return "Too slow (${String.format("%.1f", v)}m/s)" // "СЃС‚РѕСЋ/С€СѓРј"
+        if (v > 12.0f) return "Too fast (${String.format("%.1f", v)}m/s) (Teleport)" // "С‚РµР»РµРїРѕСЂС‚/РіР»СЋРє" (СѓРІРµР»РёС‡РµРЅРѕ СЃ 7.5 РґРѕ 12.0 Рј/СЃ РґР»СЏ Р±С‹СЃС‚СЂС‹С… СЂС‹РІРєРѕРІ GPS)
 
-        // 4) дополнительный стоп-кран от больших прыжков
+        // 4) РґРѕРїРѕР»РЅРёС‚РµР»СЊРЅС‹Р№ СЃС‚РѕРї-РєСЂР°РЅ РѕС‚ Р±РѕР»СЊС€РёС… РїСЂС‹Р¶РєРѕРІ
         if (d > 120f && dtSec < 10f) return "Jump (${String.format("%.1f", d)}m in ${String.format("%.1f", dtSec)}s)"
 
         return null
@@ -653,14 +779,9 @@ class WorkoutForegroundService : Service() {
     }
 
     private fun maybeEmergencyAlert(currentDistanceKm: Float) {
-        val goals = getSharedPreferences("Goals", MODE_PRIVATE)
-        val workoutMode = goals.getInt("WORKOUT_MODE", 0)
-        if (workoutMode != 0) return  // Only for normal mode
-
-        val targetDistance = if (goals.contains(TARGET_DISTANCE_KM))
-            goals.getFloat(TARGET_DISTANCE_KM, 0f)
-        else goals.getString("TARGET_DISTANCE", "0")?.replace(',', '.')?.toFloatOrNull() ?: 0f
-        val targetTotalSeconds = goals.getInt(TARGET_TIME_SEC, 0)
+        val goal = loadNormalGoal() ?: return
+        val targetDistance = goal.targetDistanceKm ?: 0f
+        val targetTotalSeconds = goal.targetTimeSec ?: 0
         if (targetDistance <= 0f || targetTotalSeconds <= 0) return
 
         // Only check every 250m
@@ -685,12 +806,55 @@ class WorkoutForegroundService : Service() {
             targetTotalSec = targetTotalSeconds
         )
         if (alert != null) {
-            speak(alert)
+            val cond = "РћС‚СЃС‚Р°РІР°РЅРёРµ РѕС‚ РіСЂР°С„РёРєР°. РЎС‚Р°С‚СѓСЃ: $lastCheckpointProgress, РџСЂРѕР№РґРµРЅРѕ: ${String.format("%.2f", currentDistanceKm)} РєРј, Р¦РµР»СЊ: $targetDistance РєРј"
+            speak(alert, cond)
             emergencyCooldownUntilDistKm = nextCheckpointKm.toDouble()
+            paceCorrector.triggerCooldown(System.currentTimeMillis())
+        }
+    }
+
+    /**
+     * Smart Pace Corrector вЂ” normal mode.
+     * Uses dynamicTargetPace (pace needed right now to finish on time).
+     * Stays silent if < 30 sec to the next distance checkpoint.
+     */
+    private fun maybePaceCorrectorNormal(currentDistanceKm: Float) {
+        val goal = loadNormalGoal() ?: return
+        val targetDist = goal.targetDistanceKm ?: 0f
+        val targetTimeSec = goal.targetTimeSec ?: 0
+        if (targetDist <= 0f || targetTimeSec <= 0) return
+
+        val elapsedSec = (currentElapsedMs() / 1000).toInt()
+        val remainDist = (targetDist - currentDistanceKm).coerceAtLeast(0.01f)
+        val timeLeft = targetTimeSec - elapsedSec
+        val dynamicTarget = if (timeLeft > 0 && remainDist > 0.05f)
+            (timeLeft / remainDist).toInt()
+        else
+            (targetTimeSec.toFloat() / targetDist).toInt()
+
+        // Silence if < 30 sec to next distance checkpoint
+        val nextCheckpointKm = lastPaceCheckDistance + calculatePaceNotificationStep(currentDistanceKm)
+        val distToCheckpoint = nextCheckpointKm - currentDistanceKm
+        if (distToCheckpoint > 0f && dynamicTarget > 0) {
+            val secsToCheckpoint = (distToCheckpoint * dynamicTarget).toInt()
+            if (secsToCheckpoint < 30) return
+        }
+
+        val suggestion = paceCorrector.maybeSuggest(
+            targetPaceSecPerKm = dynamicTarget,
+            currentTimeMs = System.currentTimeMillis(),
+            currentElapsedSec = elapsedSec.toDouble()
+        )
+        if (suggestion != null) {
+            val cond = "РљРѕСЂСЂРµРєС‚РёСЂРѕРІС‰РёРє С‚РµРјРїР° (РѕР±С‹С‡РЅС‹Р№). Р¦РµР»РµРІРѕР№: ${formatPaceShort(dynamicTarget)}"
+            speak(suggestion, cond)
+            paceCorrector.triggerCooldown(System.currentTimeMillis())
         }
     }
 
     private fun maybeNotifyPace(currentDistanceKm: Float) {
+        if (loadActiveGoal().workoutMode != 0) return  // Only for normal mode
+
         val step = calculatePaceNotificationStep(currentDistanceKm)
         if (step == Float.MAX_VALUE) return
 
@@ -702,16 +866,7 @@ class WorkoutForegroundService : Service() {
     }
 
     private fun calculatePaceNotificationStep(currentDistanceKm: Float): Float {
-        val goals = getSharedPreferences("Goals", MODE_PRIVATE)
-        
-        // Try new key first
-        val targetDistance = if (goals.contains(TARGET_DISTANCE_KM)) {
-            goals.getFloat(TARGET_DISTANCE_KM, 0f)
-        } else {
-            val targetDistanceStr = goals.getString("TARGET_DISTANCE", "0") ?: "0"
-            targetDistanceStr.toFloatOrNull() ?: 0f
-        }
-        
+        val targetDistance = loadNormalGoal()?.targetDistanceKm ?: 0f
         if (targetDistance <= 0f) return Float.MAX_VALUE
 
         val progressPercent = (currentDistanceKm / targetDistance) * 100f
@@ -724,28 +879,9 @@ class WorkoutForegroundService : Service() {
     }
 
     private fun checkAndCorrectPace(currentDistanceKm: Float) {
-        val goals = getSharedPreferences("Goals", MODE_PRIVATE)
-
-        // === Reading Goals with Fallback ===
-        val targetDistance = if (goals.contains(TARGET_DISTANCE_KM)) {
-            goals.getFloat(TARGET_DISTANCE_KM, 0f)
-        } else {
-            goals.getString("TARGET_DISTANCE", "0")?.toFloatOrNull() ?: 0f
-        }
-
-        val targetTotalSeconds = if (goals.contains(TARGET_TIME_SEC)) {
-            goals.getInt(TARGET_TIME_SEC, 0)
-        } else {
-            // Fallback to parsing "HH:MM:SS" string
-            val targetTimeStr = goals.getString("TARGET_TIME", "0") ?: "0"
-            val parts = targetTimeStr.split(":")
-            if (parts.size == 3) {
-                val h = parts[0].toIntOrNull() ?: 0
-                val m = parts[1].toIntOrNull() ?: 0
-                val s = parts[2].toIntOrNull() ?: 0
-                h * 3600 + m * 60 + s
-            } else 0
-        }
+        val goal = loadNormalGoal() ?: return
+        val targetDistance = goal.targetDistanceKm ?: 0f
+        val targetTotalSeconds = goal.targetTimeSec ?: 0
 
         if (targetDistance <= 0f || targetTotalSeconds <= 0) return
 
@@ -801,6 +937,7 @@ class WorkoutForegroundService : Service() {
         emergencyCooldownUntilDistKm = 0.0
 
         speak(message)
+        paceCorrector.triggerCooldown(System.currentTimeMillis())
     }
 
     // === Interval Execution Logic ===
@@ -810,19 +947,20 @@ class WorkoutForegroundService : Service() {
     }
 
     private fun loadWorkoutModeAndScenario() {
-        val prefs = getSharedPreferences("Goals", MODE_PRIVATE)
-        val mode = prefs.getInt(WORKOUT_MODE, 0)
+        val goal = loadActiveGoal()
+        val mode = goal.workoutMode
+        activeWorkoutModeInt = mode
 
         intervalScenario = when (mode) {
             1 -> {
-                val json = prefs.getString("INTERVAL_SCENARIO_JSON", null)
+                val json = goal.intervalScenarioJson
                 if (json.isNullOrBlank()) null
                 else try {
                     Gson().fromJson(json, IntervalScenario::class.java)
                 } catch (_: Exception) { null }
             }
             2 -> {
-                val json = prefs.getString("COMBO_SCENARIO_JSON", null)
+                val json = goal.comboScenarioJson
                 if (json.isNullOrBlank()) null
                 else try {
                     val combo = comboGson().fromJson(json, ComboScenario::class.java)
@@ -853,6 +991,8 @@ class WorkoutForegroundService : Service() {
         accumWarmupDistM = 0.0; accumWarmupTimeSec = 0
         accumCooldownDistM = 0.0; accumCooldownTimeSec = 0
         segmentStartDistanceM = getTotalDistanceMeters()
+        completedHistorySegments.clear()
+        nextHistorySegmentNumber = 1
 
         // Reset Pacer state
         lastPacerCheckpointDistanceM = 0.0
@@ -892,7 +1032,7 @@ class WorkoutForegroundService : Service() {
         // 2) Warning 10 seconds before segment ends
         if (remainingSec == 10 && warned10sIndex != segmentIndex) {
             warned10sIndex = segmentIndex
-            speak("Смена через 10 секунд")
+            speak("РЎРјРµРЅР° С‡РµСЂРµР· 10 СЃРµРєСѓРЅРґ", "РћСЃС‚Р°Р»РѕСЃСЊ 10 СЃРµРєСѓРЅРґ РґРѕ РєРѕРЅС†Р° С‚РµРєСѓС‰РµРіРѕ СЃРµРіРјРµРЅС‚Р° (РўРёРї: \${seg.type})")
         }
 
         // 3) Start "stable" tracking for WORK after ignoring first 3 seconds
@@ -909,56 +1049,18 @@ class WorkoutForegroundService : Service() {
             while (stableDeltasM.size > speedWindowSec) stableDeltasM.removeFirst()
         }
 
-        // 5) Adaptive pace hints for WORK segments with target pace
-        if (seg.type == "WORK" && seg.targetPaceSecPerKm != null && stableStarted && stableDeltasM.size >= 5) {
-            val stableInSegSec = inSegSec - workIgnoreSec  // seconds since stable phase began
-            val timing = com.example.stayer.debug.PacerLogicHelper.intervalHintTiming(seg.durationSec)
-
-            val shouldHint = if (timing != null) {
-                // Periodic hints for segments >= 2 min
-                val (firstAt, repeatEvery) = timing
-                if (lastIntervalHintInSegSec < 0) {
-                    stableInSegSec >= firstAt
-                } else {
-                    stableInSegSec - lastIntervalHintInSegSec >= repeatEvery
-                }
-            } else if (seg.durationSec in 30..119) {
-                // Single mid-hint for 30s-2min segments
-                val midPoint = seg.durationSec / 2
-                inSegSec >= midPoint && midHintIndex != segmentIndex
-            } else {
-                false  // <30s segments: no mid-hints at all
+        // 5) Smart Pace Corrector for WORK segments (replaces old mid-hints)
+        if (seg.type == "WORK" && seg.targetPaceSecPerKm != null && remainingSec > 20) {
+            val suggestion = paceCorrector.maybeSuggest(
+                targetPaceSecPerKm = seg.targetPaceSecPerKm,
+                currentTimeMs = System.currentTimeMillis(),
+                currentElapsedSec = elapsedSec.toDouble()
+            )
+            if (suggestion != null) {
+                val cond = "РљРѕСЂСЂРµРєС‚РёСЂРѕРІС‰РёРє С‚РµРјРїР° (РёРЅС‚РµСЂРІР°Р»). Р¦РµР»РµРІРѕР№: ${formatPaceShort(seg.targetPaceSecPerKm)}"
+                speak(suggestion, cond)
+                paceCorrector.triggerCooldown(System.currentTimeMillis())
             }
-
-            // Don't hint in the last 15 seconds (too close to transition)
-            if (shouldHint && remainingSec > 15) {
-                val curPace = estimatePaceFromWindow()
-                if (curPace != null) {
-                    // Layer 2: average pace over the stable phase
-                    val stableDistM = (totalDistM - stableStartDistanceM).coerceAtLeast(1.0)
-                    val stableTimeSec = (elapsedSec - stableStartElapsedSec).coerceAtLeast(1)
-                    val avgPace = if (stableDistM > 25.0) (stableTimeSec / (stableDistM / 1000.0)).toInt() else null
-
-                    val (hint, nextAlt) = com.example.stayer.debug.PacerLogicHelper.buildIntervalHint(
-                        currentPaceSecPerKm = curPace,
-                        targetPaceSecPerKm = seg.targetPaceSecPerKm,
-                        alternate = intervalHintAlternate,
-                        avgPaceSecPerKm = avgPace
-                    )
-                    intervalHintAlternate = nextAlt
-                    speak(hint)
-                    lastIntervalHintInSegSec = stableInSegSec
-                    if (timing == null) midHintIndex = segmentIndex  // mark single hint as done
-                }
-            }
-        }
-
-        // 6) REST: message at 40th second (if REST >= 40s)
-        if (seg.type == "REST" && seg.durationSec >= 40 && rest40Index != segmentIndex && inSegSec == 40) {
-            rest40Index = segmentIndex
-            val pace = estimatePaceFromWindow()
-            if (pace != null) speak("Отдых. Темп примерно ${formatPaceShort(pace)}")
-            else speak("Отдых")
         }
 
         // 6.5) PACE segment: normal pacer hints every 500m
@@ -974,11 +1076,13 @@ class WorkoutForegroundService : Service() {
                 if (curPace != null && seg.targetPaceSecPerKm > 0) {
                     val diff = curPace - seg.targetPaceSecPerKm
                     val prompt = when {
-                        kotlin.math.abs(diff) <= 15 -> "Темп хороший. Осталось ${String.format("%.1f", (targetDistM - segDistM) / 1000.0)} км."
-                        diff > 15 -> "Темп ${formatPaceShort(curPace)}. Нужен ${formatPaceShort(seg.targetPaceSecPerKm)}. Ускорьтесь."
-                        else -> "Не гони. Темп ${formatPaceShort(curPace)}."
+                        kotlin.math.abs(diff) <= 15 -> "РўРµРјРї С…РѕСЂРѕС€РёР№. РћСЃС‚Р°Р»РѕСЃСЊ ${String.format("%.1f", (targetDistM - segDistM) / 1000.0)} РєРј."
+                        diff > 15 -> "РўРµРјРї ${formatPaceShort(curPace)}. РќСѓР¶РµРЅ ${formatPaceShort(seg.targetPaceSecPerKm)}. РЈСЃРєРѕСЂСЊС‚РµСЃСЊ."
+                        else -> "РќРµ РіРѕРЅРё. РўРµРјРї ${formatPaceShort(curPace)}."
                     }
-                    speak(prompt)
+                    val cond = "Р§РµРєРїРѕРёРЅС‚ СЃРІРѕР±РѕРґРЅРѕРіРѕ Р±РµРіР°. РџСЂРѕР№РґРµРЅРѕ: ${String.format("%.1f", segDistM / 1000.0)} РєРј, РўРµРєСѓС‰РёР№ С‚РµРјРї: ${formatPaceShort(curPace)}, Р Р°Р·РЅРёС†Р°: $diff СЃРµРє"
+                    speak(prompt, cond)
+                    paceCorrector.triggerCooldown(System.currentTimeMillis())
                 }
             }
         }
@@ -1002,9 +1106,9 @@ class WorkoutForegroundService : Service() {
 
             segmentIndex += 1
             if (segmentIndex >= scenario.segments.size) {
-                // Interval workout complete — persist stats for history
+                // Interval workout complete вЂ” persist stats for history
                 persistIntervalStats()
-                speak("Тренировка завершена")
+                speak("РўСЂРµРЅРёСЂРѕРІРєР° Р·Р°РІРµСЂС€РµРЅР°", "Р—Р°РІРµСЂС€РµРЅС‹ РІСЃРµ СЃРµРіРјРµРЅС‚С‹ РёРЅС‚РµСЂРІР°Р»СЊРЅРѕР№ С‚СЂРµРЅРёСЂРѕРІРєРё")
                 handlePause()
                 intervalScenario = null
                 return
@@ -1014,6 +1118,7 @@ class WorkoutForegroundService : Service() {
             segmentStartElapsedSec = elapsedSec
             segmentStartDistanceM = totalDistM
             lastIntervalHintInSegSec = -1  // reset hint timer for new segment
+            paceCorrector.reset()  // restart 30-sec warm-up for new segment
             // Next tick will announce the new segment
         }
     }
@@ -1042,17 +1147,64 @@ class WorkoutForegroundService : Service() {
             "WARMUP"   -> { accumWarmupDistM += segDistM;   accumWarmupTimeSec += segTimeSec }
             "COOLDOWN" -> { accumCooldownDistM += segDistM; accumCooldownTimeSec += segTimeSec }
         }
+
+        recordSegmentForHistory(seg, segDistM, segTimeSec)
+    }
+
+    private fun recordSegmentForHistory(seg: Segment, segDistM: Double, segTimeSec: Int) {
+        val shouldStore = shouldStoreSegmentInHistory(seg.type)
+        if (!shouldStore) return
+
+        completedHistorySegments += WorkoutHistorySegment(
+            title = "Участок ${nextHistorySegmentNumber++}",
+            type = seg.type,
+            distanceKm = (segDistM / 1000.0).toFloat(),
+            durationSec = segTimeSec,
+            actualPaceSecPerKm = paceOrNull(segDistM, segTimeSec),
+            targetPaceSecPerKm = seg.targetPaceSecPerKm?.takeIf { it > 0 }
+        )
+    }
+
+    private fun shouldStoreSegmentInHistory(type: String): Boolean {
+        return when (activeWorkoutModeInt) {
+            1 -> type == "WORK"
+            2 -> type == "WORK" || type == "PACE"
+            else -> false
+        }
+    }
+
+    private fun buildSnapshotSegmentDetails(): List<WorkoutHistorySegment> {
+        val result = completedHistorySegments.toMutableList()
+        val scenario = intervalScenario ?: return result
+        if (segmentIndex !in scenario.segments.indices) return result
+
+        val seg = scenario.segments[segmentIndex]
+        if (!shouldStoreSegmentInHistory(seg.type)) return result
+
+        val segDistM = (getTotalDistanceMeters() - segmentStartDistanceM).coerceAtLeast(0.0)
+        val segTimeSec = ((currentElapsedMs() / 1000).toInt() - segmentStartElapsedSec).coerceAtLeast(0)
+        if (segDistM < 1.0 && segTimeSec <= 0) return result
+
+        result += WorkoutHistorySegment(
+            title = "Участок $nextHistorySegmentNumber",
+            type = seg.type,
+            distanceKm = (segDistM / 1000.0).toFloat(),
+            durationSec = segTimeSec,
+            actualPaceSecPerKm = paceOrNull(segDistM, segTimeSec),
+            targetPaceSecPerKm = seg.targetPaceSecPerKm?.takeIf { it > 0 }
+        )
+        return result
+    }
+
+    private fun paceOrNull(distM: Double, timeSec: Int): Int? {
+        if (distM < 10.0 || timeSec < 5) return null
+        val speed = distM / timeSec
+        if (speed <= 0.1) return null
+        return (1000.0 / speed).toInt()
     }
 
     /** Compute 4 average paces and write to SharedPreferences for MainActivity to read. */
     private fun persistIntervalStats() {
-        fun paceOrNull(distM: Double, timeSec: Int): Int? {
-            if (distM < 10.0 || timeSec < 5) return null
-            val speed = distM / timeSec  // m/s
-            if (speed <= 0.1) return null
-            return (1000.0 / speed).toInt()  // sec/km
-        }
-
         val avgWork = paceOrNull(accumWorkDistM, accumWorkTimeSec)
         val avgRest = paceOrNull(accumRestDistM, accumRestTimeSec)
         val avgWithout = paceOrNull(
@@ -1074,8 +1226,9 @@ class WorkoutForegroundService : Service() {
 
     private fun speakWorkEndReport(seg: Segment, totalDistM: Double, elapsedSec: Int) {
         val target = seg.targetPaceSecPerKm
+        val condExt = "Р¤Р°Р·Р° СЂР°Р±РѕС‚С‹ Р·Р°РІРµСЂС€РµРЅР°"
         if (!stableStarted || target == null) {
-            speak("Фаза работы завершена")
+            speak("Р¤Р°Р·Р° СЂР°Р±РѕС‚С‹ Р·Р°РІРµСЂС€РµРЅР°", "\$condExt (РЅРµС‚ РґР°РЅРЅС‹С… СЃС‚Р°Р±РёР»СЊРЅРѕРіРѕ С‚РµРјРїР° РёР»Рё С†РµР»РµРІРѕРіРѕ)")
             return
         }
 
@@ -1083,7 +1236,7 @@ class WorkoutForegroundService : Service() {
         val stableDistM = (totalDistM - stableStartDistanceM).coerceAtLeast(0.0)
 
         if (stableTimeSec < 10 || stableDistM < 25.0) {
-            speak("Работа завершена. Темп оценить точно не удалось")
+            speak("Р Р°Р±РѕС‚Р° Р·Р°РІРµСЂС€РµРЅР°. РўРµРјРї РѕС†РµРЅРёС‚СЊ С‚РѕС‡РЅРѕ РЅРµ СѓРґР°Р»РѕСЃСЊ", "\$condExt (СЃР»РёС€РєРѕРј РєРѕСЂРѕС‚РєР°СЏ С„Р°Р·Р° РґР»СЏ РѕС†РµРЅРєРё С‚РµРјРїР°)")
             return
         }
 
@@ -1094,24 +1247,26 @@ class WorkoutForegroundService : Service() {
             factPaceSecPerKm = factPace,
             targetPaceSecPerKm = target
         )
-        speak(report)
+        val condFull = "\$condExt. Р¤Р°РєС‚РёС‡РµСЃРєРёР№ С‚РµРјРї: \${formatPaceShort(factPace)}, Р¦РµР»РµРІРѕР№: \${formatPaceShort(target)}"
+        speak(report, condFull)
     }
 
     private fun speakSegmentStart(seg: Segment) {
         val label = when (seg.type) {
-            "WARMUP" -> "Разминка"
-            "WORK" -> "Работа"
-            "REST" -> "Отдых"
-            "COOLDOWN" -> "Заминка"
-            "PACE" -> "Свободный бег"
-            else -> "Сегмент"
+            "WARMUP" -> "Р Р°Р·РјРёРЅРєР°"
+            "WORK" -> "Р Р°Р±РѕС‚Р°"
+            "REST" -> "РћС‚РґС‹С…"
+            "COOLDOWN" -> "Р—Р°РјРёРЅРєР°"
+            "PACE" -> "РЎРІРѕР±РѕРґРЅС‹Р№ Р±РµРі"
+            else -> "РЎРµРіРјРµРЅС‚"
         }
 
         // PACE segments announce distance instead of time
         if (seg.type == "PACE" && seg.distanceKm != null) {
-            val distText = String.format("%.1f километра", seg.distanceKm)
-            val pacePart = seg.targetPaceSecPerKm?.let { " Темп ${formatPaceShort(it)}." } ?: ""
-            speak("$label. $distText.$pacePart")
+            val distText = String.format("%.1f РєРёР»РѕРјРµС‚СЂР°", seg.distanceKm)
+            val pacePart = seg.targetPaceSecPerKm?.let { " РўРµРјРї ${formatPaceShort(it)}." } ?: ""
+            val cond = "РќР°С‡Р°Р»Рѕ РЅРѕРІРѕРіРѕ СЃРµРіРјРµРЅС‚Р° (РўРёРї: ${seg.type}, Р”РёСЃС‚Р°РЅС†РёСЏ: ${seg.distanceKm} РєРј)"
+            speak("$label. $distText.$pacePart", cond)
             return
         }
 
@@ -1119,17 +1274,18 @@ class WorkoutForegroundService : Service() {
         val durText = if (dur >= 60) {
             val m = dur / 60
             val s = dur % 60
-            if (s == 0) "$m минут" else "$m минут $s секунд"
-        } else "$dur секунд"
+            if (s == 0) "$m РјРёРЅСѓС‚" else "$m РјРёРЅСѓС‚ $s СЃРµРєСѓРЅРґ"
+        } else "$dur СЃРµРєСѓРЅРґ"
 
-        val pacePart = seg.targetPaceSecPerKm?.let { " Темп ${formatPaceShort(it)}." } ?: ""
-        speak("$label. $durText.$pacePart")
+        val pacePart = seg.targetPaceSecPerKm?.let { " РўРµРјРї ${formatPaceShort(it)}." } ?: ""
+        val cond2 = "РќР°С‡Р°Р»Рѕ РЅРѕРІРѕРіРѕ СЃРµРіРјРµРЅС‚Р° (РўРёРї: ${seg.type}, Р”Р»РёС‚РµР»СЊРЅРѕСЃС‚СЊ: ${dur} СЃРµРє)"
+        speak("$label. $durText.$pacePart", cond2)
     }
 
     private fun formatPaceShort(secPerKm: Int): String {
         val m = secPerKm / 60
         val s = secPerKm % 60
-        return if (s == 0) "$m минут" else "$m минут $s секунд"
+        return if (s == 0) "$m РјРёРЅСѓС‚" else "$m РјРёРЅСѓС‚ $s СЃРµРєСѓРЅРґ"
     }
 
     private fun broadcastIntervalState(seg: Segment, remainingSec: Int, idx: Int, total: Int) {
@@ -1145,9 +1301,21 @@ class WorkoutForegroundService : Service() {
         sendBroadcast(intent)
     }
 
-    private fun speak(text: String) {
+    private fun speak(text: String, condition: String? = null) {
+        if (condition != null) {
+            val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault()).format(Date())
+            val logLine = "[\$timestamp] РЎРџРР§: \"\$text\" | РЈРЎР›РћР’РР•: \$condition\n"
+            try {
+                val logFile = File(getExternalFilesDir(null), "stayer_log.txt")
+                FileWriter(logFile, true).use {
+                    it.append(logLine)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
         requestAudioFocusForTTS()
-        // отдельный короткий wakelock на TTS фразу (чтобы не резало на экране-off)
+        // РѕС‚РґРµР»СЊРЅС‹Р№ РєРѕСЂРѕС‚РєРёР№ wakelock РЅР° TTS С„СЂР°Р·Сѓ (С‡С‚РѕР±С‹ РЅРµ СЂРµР·Р°Р»Рѕ РЅР° СЌРєСЂР°РЅРµ-off)
         val ttsWake = (getSystemService(Context.POWER_SERVICE) as PowerManager)
             .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "WorkoutForegroundService::TTSWake")
         ttsWake.acquire(15_000L)
@@ -1170,39 +1338,39 @@ class WorkoutForegroundService : Service() {
     }
 
     private fun formatPace(secondsPerKm: Float): String {
-        if (secondsPerKm <= 0f || secondsPerKm == Float.MAX_VALUE) return "0 минут 0 секунд"
+        if (secondsPerKm <= 0f || secondsPerKm == Float.MAX_VALUE) return "0 РјРёРЅСѓС‚ 0 СЃРµРєСѓРЅРґ"
         val totalSeconds = secondsPerKm.toInt()
         val minutes = totalSeconds / 60
         val seconds = (totalSeconds % 60)
         val roundedSeconds = ((seconds / 5) * 5)
         return when {
-            minutes == 0 -> "$roundedSeconds секунд"
-            roundedSeconds == 0 -> "$minutes минут"
-            else -> "$minutes минут $roundedSeconds секунд"
+            minutes == 0 -> "$roundedSeconds СЃРµРєСѓРЅРґ"
+            roundedSeconds == 0 -> "$minutes РјРёРЅСѓС‚"
+            else -> "$minutes РјРёРЅСѓС‚ $roundedSeconds СЃРµРєСѓРЅРґ"
         }
     }
 
     private fun formatRemainingDistance(remainingKm: Float): String {
-        if (remainingKm <= 0f) return "0 километров 0 метров"
+        if (remainingKm <= 0f) return "0 РєРёР»РѕРјРµС‚СЂРѕРІ 0 РјРµС‚СЂРѕРІ"
         val kilometers = remainingKm.toInt()
         val meters = ((remainingKm - kilometers) * 1000).toInt()
         return when {
-            kilometers == 0 -> "$meters метров"
+            kilometers == 0 -> "$meters РјРµС‚СЂРѕРІ"
             meters == 0 -> when (kilometers) {
-                1 -> "1 километр"
-                in 2..4 -> "$kilometers километра"
-                else -> "$kilometers километров"
+                1 -> "1 РєРёР»РѕРјРµС‚СЂ"
+                in 2..4 -> "$kilometers РєРёР»РѕРјРµС‚СЂР°"
+                else -> "$kilometers РєРёР»РѕРјРµС‚СЂРѕРІ"
             }
             else -> {
                 val kmText = when (kilometers) {
-                    1 -> "1 километр"
-                    in 2..4 -> "$kilometers километра"
-                    else -> "$kilometers километров"
+                    1 -> "1 РєРёР»РѕРјРµС‚СЂ"
+                    in 2..4 -> "$kilometers РєРёР»РѕРјРµС‚СЂР°"
+                    else -> "$kilometers РєРёР»РѕРјРµС‚СЂРѕРІ"
                 }
                 val mText = when (meters) {
-                    1 -> "1 метр"
-                    in 2..4 -> "$meters метра"
-                    else -> "$meters метров"
+                    1 -> "1 РјРµС‚СЂ"
+                    in 2..4 -> "$meters РјРµС‚СЂР°"
+                    else -> "$meters РјРµС‚СЂРѕРІ"
                 }
                 "$kmText $mText"
             }
@@ -1218,8 +1386,8 @@ class WorkoutForegroundService : Service() {
                 if (voiceLocale.language == "ru") {
                     val voiceName = voice.name.lowercase()
                     if (voiceName.contains("female") ||
-                        voiceName.contains("женск") ||
-                        voiceName.contains("женский") ||
+                        voiceName.contains("Р¶РµРЅСЃРє") ||
+                        voiceName.contains("Р¶РµРЅСЃРєРёР№") ||
                         voiceName.contains("anna") ||
                         voiceName.contains("elena") ||
                         voiceName.contains("milena") ||
@@ -1246,11 +1414,11 @@ class WorkoutForegroundService : Service() {
     private fun requestAudioFocusForTTS() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             if (audioFocusRequest == null) {
-                // Хотим, чтобы стороннее медиа реально уступало (а не "может приглушиться").
+                // РҐРѕС‚РёРј, С‡С‚РѕР±С‹ СЃС‚РѕСЂРѕРЅРЅРµРµ РјРµРґРёР° СЂРµР°Р»СЊРЅРѕ СѓСЃС‚СѓРїР°Р»Рѕ (Р° РЅРµ "РјРѕР¶РµС‚ РїСЂРёРіР»СѓС€РёС‚СЊСЃСЏ").
                 audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
                     .setAudioAttributes(
                         AudioAttributes.Builder()
-                            // Для голосовых подсказок лучше, чем NOTIFICATION — чаще корректнее управляет медиа.
+                            // Р”Р»СЏ РіРѕР»РѕСЃРѕРІС‹С… РїРѕРґСЃРєР°Р·РѕРє Р»СѓС‡С€Рµ, С‡РµРј NOTIFICATION вЂ” С‡Р°С‰Рµ РєРѕСЂСЂРµРєС‚РЅРµРµ СѓРїСЂР°РІР»СЏРµС‚ РјРµРґРёР°.
                             .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
                             .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                             .build()
@@ -1324,9 +1492,9 @@ class WorkoutForegroundService : Service() {
         try {
             val files = dir.listFiles { _, name -> name.startsWith("stayer_track_") && name.endsWith(".gpx") }
             if (files != null && files.size >= 30) {
-                // Сортируем по дате изменения (старые первыми)
+                // РЎРѕСЂС‚РёСЂСѓРµРј РїРѕ РґР°С‚Рµ РёР·РјРµРЅРµРЅРёСЏ (СЃС‚Р°СЂС‹Рµ РїРµСЂРІС‹РјРё)
                 files.sortBy { it.lastModified() }
-                // Удаляем самые старые, чтобы общее количество стало 29 (оставляем место для нового)
+                // РЈРґР°Р»СЏРµРј СЃР°РјС‹Рµ СЃС‚Р°СЂС‹Рµ, С‡С‚РѕР±С‹ РѕР±С‰РµРµ РєРѕР»РёС‡РµСЃС‚РІРѕ СЃС‚Р°Р»Рѕ 29 (РѕСЃС‚Р°РІР»СЏРµРј РјРµСЃС‚Рѕ РґР»СЏ РЅРѕРІРѕРіРѕ)
                 val filesToDelete = files.size - 29
                 for (i in 0 until filesToDelete) {
                     files[i].delete()
@@ -1378,6 +1546,273 @@ class WorkoutForegroundService : Service() {
             e.printStackTrace()
         }
     }
+
+    /**
+     * Р¤РѕСЂРјРёСЂСѓРµС‚ С„РёРЅР°Р»СЊРЅС‹Р№ snapshot С‚СЂРµРЅРёСЂРѕРІРєРё Р”Рћ Р»СЋР±РѕРіРѕ reset'Р°.
+     * РСЃС‚РѕС‡РЅРёРє РёСЃС‚РёРЅС‹ РґР»СЏ СЃРѕС…СЂР°РЅРµРЅРёСЏ РёСЃС‚РѕСЂРёРё.
+     */
+    private fun buildFinalSnapshot(): WorkoutSummarySnapshot {
+        writeLog("SERVICE: Building final snapshot...")
+        
+        // Р¤РёРЅР°Р»СЊРЅС‹Рµ Р·РЅР°С‡РµРЅРёСЏ РёР· СЃРµСЂРІРёСЃР° (РёСЃС‚РѕС‡РЅРёРє РёСЃС‚РёРЅС‹)
+        val finalDistanceKm = totalDistanceKm
+        val finalElapsedMs = currentElapsedMs()
+        
+        // Р’С‹С‡РёСЃР»СЏРµРј СЃРєРѕСЂРѕСЃС‚СЊ
+        val speedKmh = if (finalDistanceKm > 0 && finalElapsedMs > 0) {
+            finalDistanceKm / (finalElapsedMs / 3600000.0f)
+        } else 0f
+        
+        // Р§РёС‚Р°РµРј С†РµР»Рё
+        val goal = loadActiveGoal()
+        val targetDistanceKm = goal.targetDistanceKm?.takeIf { it > 0f }
+        val targetTimeSec = goal.targetTimeSec?.takeIf { it > 0 }
+        val targetPaceSecPerKm = goal.targetPaceSecPerKm?.takeIf { it > 0 }
+        val workoutModeInt = goal.workoutMode
+        val goalLabel = buildGoalLabel(goal)
+        
+        // Р§РёС‚Р°РµРј РёРЅС‚РµСЂРІР°Р»СЊРЅСѓСЋ СЃС‚Р°С‚РёСЃС‚РёРєСѓ (РµСЃР»Рё РµСЃС‚СЊ)
+        val runtimePrefs = getSharedPreferences("WorkoutRuntime", MODE_PRIVATE)
+        val avgWork = runtimePrefs.getInt("INTERVAL_AVG_WORK", -1).takeIf { it > 0 }
+        val avgRest = runtimePrefs.getInt("INTERVAL_AVG_REST", -1).takeIf { it > 0 }
+        val avgNoWarmup = runtimePrefs.getInt("INTERVAL_AVG_NO_WARMUP", -1).takeIf { it > 0 }
+        val avgTotal = runtimePrefs.getInt("INTERVAL_AVG_TOTAL", -1).takeIf { it > 0 }
+        
+        // РћРїСЂРµРґРµР»СЏРµРј СЂРµР¶РёРј
+        val mode = when {
+            workoutModeInt == 1 -> "interval"
+            workoutModeInt == 2 -> "combined"
+            avgWork != null || avgRest != null -> "interval"
+            else -> "normal"
+        }
+        
+        writeLog("SNAPSHOT: dist=$finalDistanceKm, elapsed=$finalElapsedMs, mode=$mode")
+        
+        return WorkoutSummarySnapshot(
+            distanceKm = finalDistanceKm,
+            elapsedMs = finalElapsedMs,
+            speedKmh = speedKmh,
+            workoutMode = mode,
+            normalGoalMode = goal.normalGoalMode,
+            goalLabel = goalLabel,
+            targetDistanceKm = targetDistanceKm,
+            targetTimeSec = targetTimeSec,
+            targetPaceSecPerKm = targetPaceSecPerKm,
+            avgPaceWorkSec = avgWork,
+            avgPaceRestSec = avgRest,
+            avgPaceWithoutWarmupSec = avgNoWarmup,
+            avgPaceTotalSec = avgTotal,
+            segmentDetails = buildSnapshotSegmentDetails()
+        )
+    }
+
+    private fun buildGoalLabel(goal: ActiveWorkoutGoal): String? {
+        return when (goal.workoutMode) {
+            1 -> buildIntervalGoalLabel(goal.intervalScenarioJson)
+            2 -> buildComboGoalLabel(goal.comboScenarioJson)
+            else -> buildNormalGoalLabel(goal)
+        }
+    }
+
+    private fun buildNormalGoalLabel(goal: ActiveWorkoutGoal): String? {
+        val distancePart = goal.targetDistanceKm
+            ?.takeIf { it > 0f }
+            ?.let { String.format(Locale.getDefault(), "%.2f км", it) }
+        val secondary = when (goal.normalGoalMode) {
+            1 -> goal.targetPaceSecPerKm?.takeIf { it > 0 }?.let(::formatHistoryPace)
+            else -> goal.targetTimeSec?.takeIf { it > 0 }?.let(::formatHistoryClock)
+        }
+        return listOfNotNull(distancePart, secondary).takeIf { it.isNotEmpty() }?.joinToString(" • ")
+    }
+
+    private fun buildIntervalGoalLabel(json: String?): String {
+        if (json.isNullOrBlank()) return "Интервальная"
+        return try {
+            val scenario = Gson().fromJson(json, IntervalScenario::class.java)
+            val workSeg = scenario.segments.firstOrNull { it.type == "WORK" }
+            val restSeg = scenario.segments.firstOrNull { it.type == "REST" }
+            val workCount = scenario.segments.count { it.type == "WORK" }
+            when {
+                workSeg != null && restSeg != null && workCount > 0 ->
+                    "${workCount}×${formatHistoryClock(workSeg.durationSec)} / ${formatHistoryClock(restSeg.durationSec)}"
+                workSeg != null && workCount > 0 ->
+                    "${workCount}×${formatHistoryClock(workSeg.durationSec)}"
+                else -> "Интервальная"
+            }
+        } catch (_: Exception) {
+            "Интервальная"
+        }
+    }
+
+    private fun buildComboGoalLabel(json: String?): String {
+        if (json.isNullOrBlank()) return "Комбо"
+        return try {
+            val scenario = comboGson().fromJson(json, ComboScenario::class.java)
+            "Комбо • ${formatHistoryClock(scenario.estimateTotalTimeSec())}"
+        } catch (_: Exception) {
+            "Комбо"
+        }
+    }
+
+    private fun formatHistoryClock(totalSec: Int): String {
+        val hours = totalSec / 3600
+        val minutes = (totalSec % 3600) / 60
+        val seconds = totalSec % 60
+        return if (hours > 0) {
+            String.format(Locale.getDefault(), "%d:%02d:%02d", hours, minutes, seconds)
+        } else {
+            String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
+        }
+    }
+
+    private fun formatHistoryPace(secPerKm: Int): String {
+        val minutes = secPerKm / 60
+        val seconds = secPerKm % 60
+        return String.format(Locale.getDefault(), "%d:%02d/км", minutes, seconds)
+    }
+
+    /**
+     * РћС‚РїСЂР°РІР»СЏРµС‚ С„РёРЅР°Р»СЊРЅС‹Р№ snapshot РІ MainActivity РґР»СЏ СЃРѕС…СЂР°РЅРµРЅРёСЏ РёСЃС‚РѕСЂРёРё.
+     */
+    private fun broadcastFinalSnapshot(snapshot: WorkoutSummarySnapshot) {
+        val intent = Intent(ACTION_BROADCAST_FINAL_SNAPSHOT).apply {
+            `package` = packageName
+            putExtra(EXTRA_SNAPSHOT_JSON, Gson().toJson(snapshot))
+        }
+        sendBroadcast(intent)
+        writeLog("SERVICE: Final snapshot broadcast sent")
+    }
+    
+    /**
+     * РЎРѕС…СЂР°РЅСЏРµС‚ snapshot РІ РЅР°РґС‘Р¶РЅРѕРµ С…СЂР°РЅРёР»РёС‰Рµ Р”Рћ reset'Р°.
+     * Р•СЃР»Рё СЃРѕС…СЂР°РЅРµРЅРёРµ РІ РёСЃС‚РѕСЂРёСЋ РЅРµ Р·Р°РІРµСЂС€РёС‚СЃСЏ, snapshot РјРѕР¶РЅРѕ РІРѕСЃСЃС‚Р°РЅРѕРІРёС‚СЊ.
+     */
+    private fun savePendingSnapshot(snapshot: WorkoutSummarySnapshot) {
+        try {
+            val prefs = getSharedPreferences(PREFS_PENDING_SNAPSHOT, MODE_PRIVATE)
+            prefs.edit()
+                .putString(KEY_PENDING_SNAPSHOT_JSON, Gson().toJson(snapshot))
+                .putLong(KEY_PENDING_SNAPSHOT_TIMESTAMP, System.currentTimeMillis())
+                .apply()
+            writeLog("SERVICE: Pending snapshot saved to storage")
+        } catch (e: Exception) {
+            writeLog("ERROR: Failed to save pending snapshot: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+    
+    /**
+     * РћС‡РёС‰Р°РµС‚ pending snapshot РїРѕСЃР»Рµ СѓСЃРїРµС€РЅРѕРіРѕ СЃРѕС…СЂР°РЅРµРЅРёСЏ Рё reset'Р°.
+     */
+    private fun clearPendingSnapshot() {
+        try {
+            val prefs = getSharedPreferences(PREFS_PENDING_SNAPSHOT, MODE_PRIVATE)
+            prefs.edit().clear().apply()
+            writeLog("SERVICE: Pending snapshot cleared")
+        } catch (e: Exception) {
+            writeLog("ERROR: Failed to clear pending snapshot: ${e.message}")
+        }
+    }
+    
+    /**
+     * РџСЂРѕРІРµСЂСЏРµС‚ РЅР°Р»РёС‡РёРµ РЅРµСЃРѕС…СЂР°РЅС‘РЅРЅРѕРіРѕ snapshot РїСЂРё СЃС‚Р°СЂС‚Рµ Service.
+     * Р•СЃР»Рё РµСЃС‚СЊ - РїС‹С‚Р°РµС‚СЃСЏ РІРѕСЃСЃС‚Р°РЅРѕРІРёС‚СЊ Рё СЃРѕС…СЂР°РЅРёС‚СЊ.
+     */
+    private fun checkAndRestorePendingSnapshot() {
+        try {
+            val prefs = getSharedPreferences(PREFS_PENDING_SNAPSHOT, MODE_PRIVATE)
+            val snapshotJson = prefs.getString(KEY_PENDING_SNAPSHOT_JSON, null)
+            val timestamp = prefs.getLong(KEY_PENDING_SNAPSHOT_TIMESTAMP, 0L)
+            
+            if (!snapshotJson.isNullOrBlank()) {
+                val age = System.currentTimeMillis() - timestamp
+                writeLog("SERVICE: Found pending snapshot, age=${age}ms")
+                
+                // Р’РѕСЃСЃС‚Р°РЅР°РІР»РёРІР°РµРј С‚РѕР»СЊРєРѕ СЃРІРµР¶РёРµ snapshot (РЅРµ СЃС‚Р°СЂС€Рµ 10 РјРёРЅСѓС‚)
+                if (age < 10 * 60 * 1000) {
+                    val snapshot = Gson().fromJson(snapshotJson, WorkoutSummarySnapshot::class.java)
+                    if (snapshot.isValid()) {
+                        writeLog("SERVICE: Restoring pending snapshot: distance=${snapshot.distanceKm}km")
+                        val saved = saveWorkoutHistoryFromSnapshot(snapshot)
+                        if (saved) {
+                            writeLog("SERVICE: Pending snapshot successfully restored and saved")
+                            clearPendingSnapshot()
+                        }
+                    } else {
+                        writeLog("SERVICE: Pending snapshot invalid, clearing")
+                        clearPendingSnapshot()
+                    }
+                } else {
+                    writeLog("SERVICE: Pending snapshot too old, clearing")
+                    clearPendingSnapshot()
+                }
+            }
+        } catch (e: Exception) {
+            writeLog("ERROR: Failed to restore pending snapshot: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+    
+    /**
+     * Service РЎРђРњ СЃРѕС…СЂР°РЅСЏРµС‚ РёСЃС‚РѕСЂРёСЋ РёР· snapshot.
+     * РќР• Р·Р°РІРёСЃРёС‚ РѕС‚ Activity - РЅР°РґС‘Р¶РЅРѕРµ СЃРѕС…СЂР°РЅРµРЅРёРµ.
+     */
+    private fun saveWorkoutHistoryFromSnapshot(snapshot: WorkoutSummarySnapshot): Boolean {
+        return try {
+            writeLog("SERVICE: Saving workout history from snapshot")
+            
+            val workoutHistory = snapshot.toWorkoutHistory()
+            
+            // Р—Р°РіСЂСѓР¶Р°РµРј СЃСѓС‰РµСЃС‚РІСѓСЋС‰РёР№ СЃРїРёСЃРѕРє
+            val historyPrefs = getSharedPreferences("WorkoutHistory", MODE_PRIVATE)
+            val existingJson = historyPrefs.getString("workoutHistoryList", null)
+            
+            val workoutList = if (existingJson != null) {
+                try {
+                    val type = object : com.google.gson.reflect.TypeToken<List<WorkoutHistory>>() {}.type
+                    Gson().fromJson<List<WorkoutHistory>>(existingJson, type).toMutableList()
+                } catch (e: Exception) {
+                    writeLog("ERROR loading history: ${e.message}")
+                    mutableListOf()
+                }
+            } else {
+                mutableListOf()
+            }
+            
+            // Р”РѕР±Р°РІР»СЏРµРј РЅРѕРІСѓСЋ С‚СЂРµРЅРёСЂРѕРІРєСѓ РІ РЅР°С‡Р°Р»Рѕ
+            workoutList.add(0, workoutHistory)
+            
+            // РЎРѕС…СЂР°РЅСЏРµРј
+            historyPrefs.edit()
+                .putString("workoutHistoryList", Gson().toJson(workoutList))
+                .apply()
+            
+            writeLog("SERVICE_HISTORY_SAVED: ${Gson().toJson(workoutHistory)}")
+            
+            // РћС‡РёС‰Р°РµРј РІСЂРµРјРµРЅРЅСѓСЋ СЃС‚Р°С‚РёСЃС‚РёРєСѓ РёРЅС‚РµСЂРІР°Р»РѕРІ
+            getSharedPreferences("WorkoutRuntime", MODE_PRIVATE).edit().clear().apply()
+            
+            true
+        } catch (e: Exception) {
+            writeLog("ERROR: Failed to save history from snapshot: ${e.message}")
+            e.printStackTrace()
+            false
+        }
+    }
+
+    private fun writeLog(message: String) {
+        try {
+            val logFile = File(getExternalFilesDir(null), "stayer_log.txt")
+            val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault()).format(Date())
+            val logMessage = "[$timestamp] $message\n"
+            FileWriter(logFile, true).use { writer ->
+                writer.append(logMessage)
+            }
+        } catch (e: Exception) {
+            // РРіРЅРѕСЂРёСЂСѓРµРј РѕС€РёР±РєРё Р»РѕРіРёСЂРѕРІР°РЅРёСЏ
+        }
+    }
 }
+
 
 
