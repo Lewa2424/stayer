@@ -33,7 +33,7 @@ class PaceCorrectionManager {
 
     companion object {
         private const val WINDOW_SEC = 30.0
-        private const val CORRIDOR_SEC = 10
+        private const val CORRIDOR_SEC = 7
         const val COOLDOWN_MS = 30_000L
         private const val MIN_DISTANCE_M = 15.0
 
@@ -216,8 +216,8 @@ class PaceCorrectionManager {
         if (absDiff <= CORRIDOR_SEC) return 0
 
         val magnitude = when {
-            absDiff <= 20 -> 1
-            absDiff <= 30 -> 2
+            absDiff <= 15 -> 1
+            absDiff <= 25 -> 2
             else -> 3
         }
         return if (diffSecPerKm > 0) magnitude else -magnitude

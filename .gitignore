@@ -13,3 +13,11 @@
 .externalNativeBuild
 .cxx
 local.properties
+build_*.txt
+crash_log.txt
+err*.log
+err*.txt
+full_build_log.txt
+test_*.txt
+app/src/test/java/com/example/stayer/stayer_log.txt
+app/src/test/java/com/example/stayer/*.gpx

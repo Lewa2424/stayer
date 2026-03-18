@@ -254,7 +254,7 @@ class MainActivity : AppCompatActivity() {
 
         // Начальные цели (UI)
         val goalsPrefs: SharedPreferences = getSharedPreferences("Goals", MODE_PRIVATE)
-        refreshGoalUi(goalsPrefs)
+        refreshGoalUi(WorkoutGoalStore.load(goalsPrefs))
 
         // Инициализация TTS с лямбда-коллбэком
         textToSpeech = TextToSpeech(this) { status ->
@@ -537,16 +537,11 @@ class MainActivity : AppCompatActivity() {
             startPreStartLocationUpdates()
         }
         val sharedPreferences: SharedPreferences = getSharedPreferences("Goals", MODE_PRIVATE)
-        refreshGoalUi(sharedPreferences)
-
-        // Read workout mode & build scenario preview
-        val mode = WorkoutGoalStore.load(sharedPreferences).workoutMode
+        val goal = WorkoutGoalStore.load(sharedPreferences)
+        refreshGoalUi(goal)
+        val mode = goal.workoutMode
         uiWorkoutMode = mode
-        uiScenarioPreview = when (mode) {
-            1 -> buildIntervalPreview(sharedPreferences)
-            2 -> buildComboPreview(sharedPreferences)
-            else -> ""
-        }
+        uiScenarioPreview = WorkoutGoalText.buildScenarioPreview(goal)
         writeLog("SCREEN: MainActivity resumed, goalValue=$uiGoalValue, goalSupporting=$uiGoalSupporting, mode=$mode")
     }
 
@@ -622,6 +617,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun refreshGoalUi(goal: ActiveWorkoutGoal) {
+        uiWorkoutMode = goal.workoutMode
+        val display = WorkoutGoalText.buildDisplay(goal)
+        uiGoalValue = display.value
+        uiGoalSupporting = display.supporting
+    }
+
     private fun refreshGoalUi(prefs: SharedPreferences) {
         val goal = WorkoutGoalStore.load(prefs)
         uiWorkoutMode = goal.workoutMode
@@ -689,6 +691,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
+        writeLog("ACTIVITY_ON_START: registering receivers")
         if (workoutUpdateReceiver == null) {
             workoutUpdateReceiver = object : BroadcastReceiver() {
                 override fun onReceive(context: Context?, intent: Intent?) {
@@ -741,6 +744,7 @@ class MainActivity : AppCompatActivity() {
                     }
                     
                     try {
+                        writeLog("FINAL_SNAPSHOT_RECEIVER: snapshot broadcast received")
                         val snapshot = Gson().fromJson(snapshotJson, WorkoutSummarySnapshot::class.java)
                         writeLog("SNAPSHOT_RECEIVED: distance=${snapshot.distanceKm}km, elapsed=${snapshot.elapsedMs}ms")
                         
@@ -755,11 +759,14 @@ class MainActivity : AppCompatActivity() {
                         // Мы только обновляем UI и отправляем ACK
                         
                         // Отправляем ACK в Service для завершения reset'а
+                        writeLog("ACTIVITY: sending SAVE_ACK to Service")
                         WorkoutForegroundService.sendSaveAck(this@MainActivity)
                         writeLog("ACTIVITY: ACK sent to Service")
                         
                         // Сбрасываем UI
+                        writeLog("ACTIVITY: resetUIAfterWorkout begin")
                         resetUIAfterWorkout()
+                        writeLog("ACTIVITY: resetUIAfterWorkout end")
                         
                         // Опционально: показываем уведомление пользователю
                         if (snapshot.isValid()) {
@@ -778,8 +785,11 @@ class MainActivity : AppCompatActivity() {
                         writeLog("ERROR parsing snapshot: ${e.message}")
                         e.printStackTrace()
                         // Даже при ошибке парсинга отправляем ACK и сбрасываем UI
+                        writeLog("ACTIVITY: sending SAVE_ACK after snapshot parse failure")
                         WorkoutForegroundService.sendSaveAck(this@MainActivity)
+                        writeLog("ACTIVITY: resetUIAfterWorkout begin after parse failure")
                         resetUIAfterWorkout()
+                        writeLog("ACTIVITY: resetUIAfterWorkout end after parse failure")
                     }
                 }
             }
@@ -794,18 +804,24 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
+        writeLog("ACTIVITY_ON_STOP: begin unregister receivers")
         workoutUpdateReceiver?.let {
             try {
                 unregisterReceiver(it)
+                writeLog("ACTIVITY_ON_STOP: workoutUpdateReceiver unregistered")
             } catch (_: Exception) {
+                writeLog("ACTIVITY_ON_STOP: workoutUpdateReceiver unregister skipped")
             }
         }
         finalSnapshotReceiver?.let {
             try {
                 unregisterReceiver(it)
+                writeLog("ACTIVITY_ON_STOP: finalSnapshotReceiver unregistered")
             } catch (_: Exception) {
+                writeLog("ACTIVITY_ON_STOP: finalSnapshotReceiver unregister skipped")
             }
         }
+        writeLog("ACTIVITY_ON_STOP: end")
     }
 
     /**
@@ -813,6 +829,7 @@ class MainActivity : AppCompatActivity() {
      * Вызывается ПОСЛЕ успешного сохранения snapshot.
      */
     private fun resetUIAfterWorkout() {
+        writeLog("UI_RESET_BEGIN")
         isLongPress = true
         isActive = false
         isTimerRunning = false
@@ -834,19 +851,26 @@ class MainActivity : AppCompatActivity() {
         uiElapsedMs = 0L
         startTime = 0
 
-        // Очистка лог-файла при сбросе
-        clearLogFile()
-        
         writeLog("UI_RESET_DONE")
     }
 
     override fun onDestroy() {
+        writeLog("ACTIVITY_ON_DESTROY: begin")
         super.onDestroy()
+        writeLog("ACTIVITY_ON_DESTROY: after super")
+        writeLog("ACTIVITY_ON_DESTROY: shutting down MainActivity TTS")
         textToSpeech.shutdown()
         val intent = Intent(this, TTSBackgroundService::class.java).apply {
             action = "STOP"
         }
-        startService(intent)
+        writeLog("ACTIVITY_ON_DESTROY: sending STOP to TTSBackgroundService")
+        try {
+            startService(intent)
+            writeLog("ACTIVITY_ON_DESTROY: STOP sent to TTSBackgroundService")
+        } catch (e: Exception) {
+            writeLog("ACTIVITY_ON_DESTROY: failed to stop TTSBackgroundService: ${e.javaClass.simpleName}: ${e.message}")
+            throw e
+        }
     }
 
 

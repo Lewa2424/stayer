@@ -60,10 +60,6 @@ class WorkoutForegroundService : Service() {
 
         // Goal Prefs Keys (matching GoalActivity)
         private const val WORKOUT_MODE = "WORKOUT_MODE" // 0=normal, 1=interval, 2=combo
-        private const val NORMAL_GOAL_MODE = "NORMAL_GOAL_MODE" // 0=time, 1=pace
-        private const val TARGET_DISTANCE_KM = "TARGET_DISTANCE_KM" // Float
-        private const val TARGET_TIME_SEC = "TARGET_TIME_SEC" // Int
-        private const val TARGET_PACE_SEC_PER_KM = "TARGET_PACE_SEC_PER_KM" // Int
 
         const val ACTION_START_OR_RESUME = "com.example.stayer.action.START_OR_RESUME"
         const val ACTION_PAUSE = "com.example.stayer.action.PAUSE"
@@ -121,6 +117,7 @@ class WorkoutForegroundService : Service() {
 
     private val tickHandler = Handler(Looper.getMainLooper())
     private var tickRunnable: Runnable? = null
+    private var tickDebugLogged = false
 
     private var totalDistanceKm: Float = 0f
     private var lastPaceCheckDistance: Float = 0f
@@ -133,10 +130,12 @@ class WorkoutForegroundService : Service() {
     private var totalPausedMs: Long = 0L
 
     private lateinit var wakeLock: PowerManager.WakeLock
+    private lateinit var ttsWakeLock: PowerManager.WakeLock
 
     private lateinit var audioManager: AudioManager
     private var audioFocusRequest: AudioFocusRequest? = null
     private lateinit var textToSpeech: TextToSpeech
+    private var pendingTtsUtterances = 0
 
     // === Interval execution state ===
     private var intervalScenario: IntervalScenario? = null
@@ -226,6 +225,7 @@ class WorkoutForegroundService : Service() {
 
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "WorkoutForegroundService::WakeLock")
+        ttsWakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "WorkoutForegroundService::TTSWake")
 
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
@@ -244,6 +244,18 @@ class WorkoutForegroundService : Service() {
                 }
             }
         }
+        textToSpeech.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+            override fun onStart(utteranceId: String?) {}
+
+            override fun onDone(utteranceId: String?) {
+                handleTtsUtteranceFinished()
+            }
+
+            @Deprecated("Deprecated in Java")
+            override fun onError(utteranceId: String?) {
+                handleTtsUtteranceFinished()
+            }
+        })
 
         // Р’Р°Р¶РЅРѕ: РґР»СЏ TTS РїРѕРІРµСЂС… РјСѓР·С‹РєРё
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -271,6 +283,7 @@ class WorkoutForegroundService : Service() {
     private fun handleStartOrResume() {
         // РЎС‚Р°СЂС‚ foreground СЃСЂР°Р·Сѓ, С‡С‚РѕР±С‹ Android РЅРµ СѓР±РёР» СЃРµСЂРІРёСЃ Р·Р° С‚Р°Р№РјР°СѓС‚
         startForeground(NOTIFICATION_ID, buildNotification())
+        writeLog("SERVICE_START: before start branch isRunning=$isRunning, isPaused=$isPaused, startTimeMs=$startTimeMs, elapsed=${currentElapsedMs()}")
 
         if (!wakeLock.isHeld) {
             // РќР° РІСЂРµРјСЏ С‚СЂРµРЅРёСЂРѕРІРєРё РґРµСЂР¶РёРј CPU Р¶РёРІС‹Рј (РёРЅР°С‡Рµ Doze РјРѕР¶РµС‚ Р¶С‘СЃС‚РєРѕ СЂРµР·Р°С‚СЊ Р°РїРґРµР№С‚С‹)
@@ -305,6 +318,7 @@ class WorkoutForegroundService : Service() {
         }
 
         persistState()
+        writeLog("SERVICE_START: after init mode=$activeWorkoutModeInt, startTimeMs=$startTimeMs, segmentIndex=$segmentIndex, lastAnnouncedSegmentIndex=$lastAnnouncedSegmentIndex")
         startLocationUpdates()
         
         stepSensor?.let {
@@ -408,6 +422,7 @@ class WorkoutForegroundService : Service() {
         totalDistanceKm = 0f
         lastPaceCheckDistance = 0f
         goalReached = false
+        tickDebugLogged = false
         
         // Reset Pacer state
         lastPacerCheckpointDistanceM = 0.0
@@ -450,9 +465,14 @@ class WorkoutForegroundService : Service() {
 
     private fun startTicking() {
         if (tickRunnable != null) return
+        tickDebugLogged = false
         tickRunnable = object : Runnable {
             override fun run() {
                 if (isRunning && !isPaused) {
+                    if (!tickDebugLogged) {
+                        writeLog("TICK: first active tick mode=$activeWorkoutModeInt, distance=$totalDistanceKm, elapsed=${currentElapsedMs()}, segmentIndex=$segmentIndex")
+                        tickDebugLogged = true
+                    }
                     // 1. Process Cadence Fallback (Intelligent Steps)
                     val stepsToProcess = stepsSinceLastTick
                     stepsSinceLastTick = 0
@@ -503,13 +523,13 @@ class WorkoutForegroundService : Service() {
         val minutes = (elapsedMs / (1000 * 60)) % 60
         val hours = (elapsedMs / (1000 * 60 * 60))
         val timeText = String.format(Locale.getDefault(), "%02d:%02d:%02d", hours, minutes, seconds)
-        val distanceText = String.format(Locale.getDefault(), "%.2f РєРј", totalDistanceKm)
-        val stateText = if (!isRunning) "РћСЃС‚Р°РЅРѕРІР»РµРЅРѕ" else if (isPaused) "РџР°СѓР·Р°" else "РРґС‘С‚"
+        val distanceText = String.format(Locale.getDefault(), "%.2f км", totalDistanceKm)
+        val stateText = if (!isRunning) "Остановлено" else if (isPaused) "Пауза" else "Идёт"
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("РўСЂРµРЅРёСЂРѕРІРєР°: $stateText")
-            .setContentText("$timeText вЂў $distanceText")
+            .setContentTitle("Тренировка: $stateText")
+            .setContentText("$timeText • $distanceText")
             .setOngoing(isRunning && !isPaused)
             .setOnlyAlertOnce(true)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
@@ -714,8 +734,8 @@ class WorkoutForegroundService : Service() {
         val epsilon = 0.001f
         if (currentDistanceKm + epsilon >= targetDistanceKm) {
             goalReached = true
-            val cond = "Р”РёСЃС‚Р°РЅС†РёСЏ РґРѕСЃС‚РёРіР»Р° С†РµР»РµРІРѕР№. РўРµРєСѓС‰Р°СЏ: ${String.format("%.2f", currentDistanceKm)} РєРј, Р¦РµР»СЊ: ${targetDistanceKm} РєРј"
-            speak("Р¦РµР»СЊ РґРѕСЃС‚РёРіРЅСѓС‚Р°. РўСЂРµРЅРёСЂРѕРІРєР° РїРѕСЃС‚Р°РІР»РµРЅР° РЅР° РїР°СѓР·Сѓ.", cond)
+            val cond = "Дистанция достигла целевой. Текущая: ${String.format("%.2f", currentDistanceKm)} км, цель: $targetDistanceKm км"
+            speak("Цель достигнута. Тренировка поставлена на паузу.", cond)
             handlePause()
         }
     }
@@ -741,10 +761,6 @@ class WorkoutForegroundService : Service() {
         if (d > 120f && dtSec < 10f) return "Jump (${String.format("%.1f", d)}m in ${String.format("%.1f", dtSec)}s)"
 
         return null
-    }
-
-    private fun acceptPoint(prev: Location, cur: Location): Boolean {
-        return acceptPointReason(prev, cur) == null
     }
 
     private class LocationSmoother(private val windowSize: Int) {
@@ -806,7 +822,7 @@ class WorkoutForegroundService : Service() {
             targetTotalSec = targetTotalSeconds
         )
         if (alert != null) {
-            val cond = "РћС‚СЃС‚Р°РІР°РЅРёРµ РѕС‚ РіСЂР°С„РёРєР°. РЎС‚Р°С‚СѓСЃ: $lastCheckpointProgress, РџСЂРѕР№РґРµРЅРѕ: ${String.format("%.2f", currentDistanceKm)} РєРј, Р¦РµР»СЊ: $targetDistance РєРј"
+            val cond = "Отставание от графика. Статус: $lastCheckpointProgress, пройдено: ${String.format("%.2f", currentDistanceKm)} км, цель: $targetDistance км"
             speak(alert, cond)
             emergencyCooldownUntilDistKm = nextCheckpointKm.toDouble()
             paceCorrector.triggerCooldown(System.currentTimeMillis())
@@ -846,7 +862,7 @@ class WorkoutForegroundService : Service() {
             currentElapsedSec = elapsedSec.toDouble()
         )
         if (suggestion != null) {
-            val cond = "РљРѕСЂСЂРµРєС‚РёСЂРѕРІС‰РёРє С‚РµРјРїР° (РѕР±С‹С‡РЅС‹Р№). Р¦РµР»РµРІРѕР№: ${formatPaceShort(dynamicTarget)}"
+            val cond = "Корректировщик темпа (обычный). Целевой: ${formatPaceShort(dynamicTarget)}"
             speak(suggestion, cond)
             paceCorrector.triggerCooldown(System.currentTimeMillis())
         }
@@ -936,7 +952,11 @@ class WorkoutForegroundService : Service() {
         lastCheckpointProgress = globalProgress
         emergencyCooldownUntilDistKm = 0.0
 
-        speak(message)
+        val checkpointCondition =
+            "Плановый чекпоинт обычного режима. Пройдено: ${String.format(Locale.getDefault(), "%.2f", currentDistanceKm)} км, " +
+                "темп сегмента: ${formatPaceShort(currentPaceSecPerKm.toInt())}, " +
+                "глобальный статус: $globalProgress, финишное отклонение: $finishDeltaSec сек"
+        speak(message, checkpointCondition)
         paceCorrector.triggerCooldown(System.currentTimeMillis())
     }
 
@@ -969,6 +989,7 @@ class WorkoutForegroundService : Service() {
             }
             else -> null
         }
+        writeLog("SCENARIO_LOAD: mode=$mode, scenarioSegments=${intervalScenario?.segments?.size ?: 0}")
 
         // Reset interval state
         segmentIndex = 0
@@ -998,6 +1019,7 @@ class WorkoutForegroundService : Service() {
         lastPacerCheckpointDistanceM = 0.0
         lastPacerCheckpointElapsedSec = 0
         pacerPraiseAlternate = false
+        writeLog("SCENARIO_RESET: segmentIndex=$segmentIndex, lastAnnouncedSegmentIndex=$lastAnnouncedSegmentIndex, segmentStartElapsedSec=$segmentStartElapsedSec, segmentStartDistanceM=$segmentStartDistanceM")
     }
 
     private fun handleIntervalTick() {
@@ -1008,6 +1030,9 @@ class WorkoutForegroundService : Service() {
         val seg = scenario.segments[segmentIndex]
         val elapsedSec = (currentElapsedMs() / 1000).toInt()
         val inSegSec = elapsedSec - segmentStartElapsedSec
+        if (segmentIndex == lastAnnouncedSegmentIndex + 1 || lastAnnouncedSegmentIndex == -1) {
+            writeLog("INTERVAL_TICK: segmentIndex=$segmentIndex, segType=${seg.type}, elapsedSec=$elapsedSec, inSegSec=$inSegSec, startElapsedSec=$segmentStartElapsedSec")
+        }
 
         // PACE segments use distance-based remaining; others use time-based
         val totalDistM = getTotalDistanceMeters()
@@ -1019,6 +1044,7 @@ class WorkoutForegroundService : Service() {
 
         // 1) Announce segment start (once per segment)
         if (segmentIndex != lastAnnouncedSegmentIndex) {
+            writeLog("INTERVAL_ANNOUNCE: segmentIndex=$segmentIndex, segType=${seg.type}, targetPace=${seg.targetPaceSecPerKm}, duration=${seg.durationSec}, distanceKm=${seg.distanceKm}")
             lastAnnouncedSegmentIndex = segmentIndex
 
             // Reset stable tracking for new segment
@@ -1032,11 +1058,12 @@ class WorkoutForegroundService : Service() {
         // 2) Warning 10 seconds before segment ends
         if (remainingSec == 10 && warned10sIndex != segmentIndex) {
             warned10sIndex = segmentIndex
-            speak("РЎРјРµРЅР° С‡РµСЂРµР· 10 СЃРµРєСѓРЅРґ", "РћСЃС‚Р°Р»РѕСЃСЊ 10 СЃРµРєСѓРЅРґ РґРѕ РєРѕРЅС†Р° С‚РµРєСѓС‰РµРіРѕ СЃРµРіРјРµРЅС‚Р° (РўРёРї: \${seg.type})")
+            speak("Смена через 10 секунд", "Осталось 10 секунд до конца текущего сегмента (тип: ${seg.type})")
         }
 
-        // 3) Start "stable" tracking for WORK after ignoring first 3 seconds
-        if (seg.type == "WORK" && !stableStarted && inSegSec >= workIgnoreSec) {
+        // 3) Start "stable" tracking for WORK/WARMUP/COOLDOWN after ignoring first 3 seconds
+        val needsStableTracking = seg.type == "WORK" || seg.type == "WARMUP" || seg.type == "COOLDOWN"
+        if (needsStableTracking && !stableStarted && inSegSec >= workIgnoreSec) {
             stableStarted = true
             stableStartElapsedSec = elapsedSec
             stableStartDistanceM = totalDistM
@@ -1044,7 +1071,7 @@ class WorkoutForegroundService : Service() {
         }
 
         // 4) Collect rolling speed data during stable phase
-        if (stableStarted && (seg.type == "WORK" || seg.type == "REST")) {
+        if (stableStarted && (seg.type == "WORK" || seg.type == "REST" || seg.type == "WARMUP" || seg.type == "COOLDOWN")) {
             stableDeltasM.addLast(deltaM)
             while (stableDeltasM.size > speedWindowSec) stableDeltasM.removeFirst()
         }
@@ -1057,9 +1084,55 @@ class WorkoutForegroundService : Service() {
                 currentElapsedSec = elapsedSec.toDouble()
             )
             if (suggestion != null) {
-                val cond = "РљРѕСЂСЂРµРєС‚РёСЂРѕРІС‰РёРє С‚РµРјРїР° (РёРЅС‚РµСЂРІР°Р»). Р¦РµР»РµРІРѕР№: ${formatPaceShort(seg.targetPaceSecPerKm)}"
+                val cond = "Корректировщик темпа (интервал). Целевой: ${formatPaceShort(seg.targetPaceSecPerKm)}"
                 speak(suggestion, cond)
                 paceCorrector.triggerCooldown(System.currentTimeMillis())
+            }
+        }
+
+        // 5.5) Time-based checkpoints + corrector for WARMUP/COOLDOWN
+        val isWarmupOrCooldown = seg.type == "WARMUP" || seg.type == "COOLDOWN"
+        if (isWarmupOrCooldown && seg.targetPaceSecPerKm != null) {
+            // First checkpoint at 2 min (120s), then every 3 min (180s)
+            val firstHintSec = 120
+            val repeatHintSec = 180
+            val hintDue = when {
+                lastIntervalHintInSegSec < 0 && inSegSec >= firstHintSec -> true
+                lastIntervalHintInSegSec >= 0 && (inSegSec - lastIntervalHintInSegSec) >= repeatHintSec -> true
+                else -> false
+            }
+            if (hintDue && remainingSec > 15) {
+                lastIntervalHintInSegSec = inSegSec
+                val curPace = estimatePaceFromWindow()
+                val target = seg.targetPaceSecPerKm
+                val label = if (seg.type == "WARMUP") "Разминка" else "Заминка"
+                val passedMin = inSegSec / 60
+                if (curPace != null) {
+                    val diff = curPace - target
+                    val prompt = when {
+                        kotlin.math.abs(diff) <= 15 -> "$label, $passedMin минут. Темп отличный."
+                        diff > 15 -> "$label, $passedMin минут. Темп ${formatPaceShort(curPace)}, нужен ${formatPaceShort(target)}. Чуть быстрее."
+                        else -> "$label, $passedMin минут. Не торопись. Темп ${formatPaceShort(curPace)}."
+                    }
+                    speak(prompt, "Чекпоинт $label. прошло $passedMin мин, темп $curPace, цель $target")
+                    paceCorrector.triggerCooldown(System.currentTimeMillis())
+                } else {
+                    speak("$label, $passedMin минут.", "Чекпоинт $label. прошло $passedMin мин, темп не определён")
+                }
+            }
+
+            // Corrector between checkpoints
+            if (remainingSec > 20) {
+                val suggestion = paceCorrector.maybeSuggest(
+                    targetPaceSecPerKm = seg.targetPaceSecPerKm,
+                    currentTimeMs = System.currentTimeMillis(),
+                    currentElapsedSec = elapsedSec.toDouble()
+                )
+                if (suggestion != null) {
+                    val cond = "Корректировщик (${seg.type}). Целевой: ${formatPaceShort(seg.targetPaceSecPerKm)}"
+                    speak(suggestion, cond)
+                    paceCorrector.triggerCooldown(System.currentTimeMillis())
+                }
             }
         }
 
@@ -1076,11 +1149,11 @@ class WorkoutForegroundService : Service() {
                 if (curPace != null && seg.targetPaceSecPerKm > 0) {
                     val diff = curPace - seg.targetPaceSecPerKm
                     val prompt = when {
-                        kotlin.math.abs(diff) <= 15 -> "РўРµРјРї С…РѕСЂРѕС€РёР№. РћСЃС‚Р°Р»РѕСЃСЊ ${String.format("%.1f", (targetDistM - segDistM) / 1000.0)} РєРј."
-                        diff > 15 -> "РўРµРјРї ${formatPaceShort(curPace)}. РќСѓР¶РµРЅ ${formatPaceShort(seg.targetPaceSecPerKm)}. РЈСЃРєРѕСЂСЊС‚РµСЃСЊ."
-                        else -> "РќРµ РіРѕРЅРё. РўРµРјРї ${formatPaceShort(curPace)}."
+                        kotlin.math.abs(diff) <= 15 -> "Темп хороший. Осталось ${String.format("%.1f", (targetDistM - segDistM) / 1000.0)} км."
+                        diff > 15 -> "Темп ${formatPaceShort(curPace)}. Нужен ${formatPaceShort(seg.targetPaceSecPerKm)}. Ускорьтесь."
+                        else -> "Не гони. Темп ${formatPaceShort(curPace)}."
                     }
-                    val cond = "Р§РµРєРїРѕРёРЅС‚ СЃРІРѕР±РѕРґРЅРѕРіРѕ Р±РµРіР°. РџСЂРѕР№РґРµРЅРѕ: ${String.format("%.1f", segDistM / 1000.0)} РєРј, РўРµРєСѓС‰РёР№ С‚РµРјРї: ${formatPaceShort(curPace)}, Р Р°Р·РЅРёС†Р°: $diff СЃРµРє"
+                    val cond = "Чекпоинт свободного бега. Пройдено: ${String.format("%.1f", segDistM / 1000.0)} км, текущий темп: ${formatPaceShort(curPace)}, разница: $diff сек"
                     speak(prompt, cond)
                     paceCorrector.triggerCooldown(System.currentTimeMillis())
                 }
@@ -1108,7 +1181,7 @@ class WorkoutForegroundService : Service() {
             if (segmentIndex >= scenario.segments.size) {
                 // Interval workout complete вЂ” persist stats for history
                 persistIntervalStats()
-                speak("РўСЂРµРЅРёСЂРѕРІРєР° Р·Р°РІРµСЂС€РµРЅР°", "Р—Р°РІРµСЂС€РµРЅС‹ РІСЃРµ СЃРµРіРјРµРЅС‚С‹ РёРЅС‚РµСЂРІР°Р»СЊРЅРѕР№ С‚СЂРµРЅРёСЂРѕРІРєРё")
+                speak("Тренировка завершена", "Завершены все сегменты интервальной тренировки")
                 handlePause()
                 intervalScenario = null
                 return
@@ -1226,9 +1299,9 @@ class WorkoutForegroundService : Service() {
 
     private fun speakWorkEndReport(seg: Segment, totalDistM: Double, elapsedSec: Int) {
         val target = seg.targetPaceSecPerKm
-        val condExt = "Р¤Р°Р·Р° СЂР°Р±РѕС‚С‹ Р·Р°РІРµСЂС€РµРЅР°"
+        val condExt = "Фаза работы завершена"
         if (!stableStarted || target == null) {
-            speak("Р¤Р°Р·Р° СЂР°Р±РѕС‚С‹ Р·Р°РІРµСЂС€РµРЅР°", "\$condExt (РЅРµС‚ РґР°РЅРЅС‹С… СЃС‚Р°Р±РёР»СЊРЅРѕРіРѕ С‚РµРјРїР° РёР»Рё С†РµР»РµРІРѕРіРѕ)")
+            speak("Фаза работы завершена", "$condExt (нет данных стабильного или целевого темпа)")
             return
         }
 
@@ -1236,7 +1309,7 @@ class WorkoutForegroundService : Service() {
         val stableDistM = (totalDistM - stableStartDistanceM).coerceAtLeast(0.0)
 
         if (stableTimeSec < 10 || stableDistM < 25.0) {
-            speak("Р Р°Р±РѕС‚Р° Р·Р°РІРµСЂС€РµРЅР°. РўРµРјРї РѕС†РµРЅРёС‚СЊ С‚РѕС‡РЅРѕ РЅРµ СѓРґР°Р»РѕСЃСЊ", "\$condExt (СЃР»РёС€РєРѕРј РєРѕСЂРѕС‚РєР°СЏ С„Р°Р·Р° РґР»СЏ РѕС†РµРЅРєРё С‚РµРјРїР°)")
+            speak("Работа завершена. Темп оценить точно не удалось", "$condExt (слишком короткая фаза для оценки темпа)")
             return
         }
 
@@ -1247,45 +1320,42 @@ class WorkoutForegroundService : Service() {
             factPaceSecPerKm = factPace,
             targetPaceSecPerKm = target
         )
-        val condFull = "\$condExt. Р¤Р°РєС‚РёС‡РµСЃРєРёР№ С‚РµРјРї: \${formatPaceShort(factPace)}, Р¦РµР»РµРІРѕР№: \${formatPaceShort(target)}"
+        val condFull = "$condExt. Фактический темп: ${formatPaceShort(factPace)}, целевой: ${formatPaceShort(target)}"
         speak(report, condFull)
     }
 
     private fun speakSegmentStart(seg: Segment) {
         val label = when (seg.type) {
-            "WARMUP" -> "Р Р°Р·РјРёРЅРєР°"
-            "WORK" -> "Р Р°Р±РѕС‚Р°"
-            "REST" -> "РћС‚РґС‹С…"
-            "COOLDOWN" -> "Р—Р°РјРёРЅРєР°"
-            "PACE" -> "РЎРІРѕР±РѕРґРЅС‹Р№ Р±РµРі"
-            else -> "РЎРµРіРјРµРЅС‚"
+            "WARMUP" -> "Разминка"
+            "WORK" -> "Работа"
+            "REST" -> "Отдых"
+            "COOLDOWN" -> "Заминка"
+            "PACE" -> "Свободный бег"
+            else -> "Сегмент"
         }
 
         // PACE segments announce distance instead of time
         if (seg.type == "PACE" && seg.distanceKm != null) {
-            val distText = String.format("%.1f РєРёР»РѕРјРµС‚СЂР°", seg.distanceKm)
-            val pacePart = seg.targetPaceSecPerKm?.let { " РўРµРјРї ${formatPaceShort(it)}." } ?: ""
-            val cond = "РќР°С‡Р°Р»Рѕ РЅРѕРІРѕРіРѕ СЃРµРіРјРµРЅС‚Р° (РўРёРї: ${seg.type}, Р”РёСЃС‚Р°РЅС†РёСЏ: ${seg.distanceKm} РєРј)"
+            val distText = formatDistanceSpeech(seg.distanceKm)
+            val pacePart = seg.targetPaceSecPerKm?.let { " Темп ${formatPaceShort(it)}." } ?: ""
+            val cond = "Начало нового сегмента (тип: ${seg.type}, дистанция: ${seg.distanceKm} км)"
             speak("$label. $distText.$pacePart", cond)
             return
         }
 
         val dur = seg.durationSec
-        val durText = if (dur >= 60) {
-            val m = dur / 60
-            val s = dur % 60
-            if (s == 0) "$m РјРёРЅСѓС‚" else "$m РјРёРЅСѓС‚ $s СЃРµРєСѓРЅРґ"
-        } else "$dur СЃРµРєСѓРЅРґ"
+        val durText = formatDurationSpeech(dur)
 
-        val pacePart = seg.targetPaceSecPerKm?.let { " РўРµРјРї ${formatPaceShort(it)}." } ?: ""
-        val cond2 = "РќР°С‡Р°Р»Рѕ РЅРѕРІРѕРіРѕ СЃРµРіРјРµРЅС‚Р° (РўРёРї: ${seg.type}, Р”Р»РёС‚РµР»СЊРЅРѕСЃС‚СЊ: ${dur} СЃРµРє)"
+        val pacePart = seg.targetPaceSecPerKm?.let { " Темп ${formatPaceShort(it)}." } ?: ""
+        val cond2 = "Начало нового сегмента (тип: ${seg.type}, длительность: $dur сек)"
         speak("$label. $durText.$pacePart", cond2)
     }
 
     private fun formatPaceShort(secPerKm: Int): String {
         val m = secPerKm / 60
         val s = secPerKm % 60
-        return if (s == 0) "$m РјРёРЅСѓС‚" else "$m РјРёРЅСѓС‚ $s СЃРµРєСѓРЅРґ"
+        return if (s == 0) "${unitText(m, "минута", "минуты", "минут")}"
+        else "${unitText(m, "минута", "минуты", "минут")} ${unitText(s, "секунда", "секунды", "секунд")}"
     }
 
     private fun broadcastIntervalState(seg: Segment, remainingSec: Int, idx: Int, total: Int) {
@@ -1302,79 +1372,98 @@ class WorkoutForegroundService : Service() {
     }
 
     private fun speak(text: String, condition: String? = null) {
-        if (condition != null) {
-            val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault()).format(Date())
-            val logLine = "[\$timestamp] РЎРџРР§: \"\$text\" | РЈРЎР›РћР’РР•: \$condition\n"
-            try {
-                val logFile = File(getExternalFilesDir(null), "stayer_log.txt")
-                FileWriter(logFile, true).use {
-                    it.append(logLine)
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
+        val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault()).format(Date())
+        val effectiveCondition = condition ?: "не указано"
+        val logLine = "[$timestamp] СПИЧ: \"$text\" | УСЛОВИЕ: $effectiveCondition\n"
+        try {
+            val logFile = File(getExternalFilesDir(null), "stayer_log.txt")
+            FileWriter(logFile, true).use {
+                it.append(logLine)
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
-        requestAudioFocusForTTS()
-        // РѕС‚РґРµР»СЊРЅС‹Р№ РєРѕСЂРѕС‚РєРёР№ wakelock РЅР° TTS С„СЂР°Р·Сѓ (С‡С‚РѕР±С‹ РЅРµ СЂРµР·Р°Р»Рѕ РЅР° СЌРєСЂР°РЅРµ-off)
-        val ttsWake = (getSystemService(Context.POWER_SERVICE) as PowerManager)
-            .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "WorkoutForegroundService::TTSWake")
-        ttsWake.acquire(15_000L)
-
-        textToSpeech.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-            override fun onStart(utteranceId: String?) {}
-            override fun onDone(utteranceId: String?) {
-                abandonAudioFocusForTTS()
-                if (ttsWake.isHeld) ttsWake.release()
+        synchronized(this) {
+            if (pendingTtsUtterances == 0) {
+                requestAudioFocusForTTS()
+                if (!ttsWakeLock.isHeld) {
+                    ttsWakeLock.acquire(15_000L)
+                }
             }
-
-            @Deprecated("Deprecated in Java")
-            override fun onError(utteranceId: String?) {
-                abandonAudioFocusForTTS()
-                if (ttsWake.isHeld) ttsWake.release()
-            }
-        })
+            pendingTtsUtterances += 1
+        }
 
         textToSpeech.speak(text, TextToSpeech.QUEUE_ADD, null, "pace_${System.currentTimeMillis()}")
     }
 
+    private fun handleTtsUtteranceFinished() {
+        synchronized(this) {
+            pendingTtsUtterances = (pendingTtsUtterances - 1).coerceAtLeast(0)
+            if (pendingTtsUtterances > 0) return
+        }
+        abandonAudioFocusForTTS()
+        if (ttsWakeLock.isHeld) ttsWakeLock.release()
+    }
+
     private fun formatPace(secondsPerKm: Float): String {
-        if (secondsPerKm <= 0f || secondsPerKm == Float.MAX_VALUE) return "0 РјРёРЅСѓС‚ 0 СЃРµРєСѓРЅРґ"
+        if (secondsPerKm <= 0f || secondsPerKm == Float.MAX_VALUE) return "0 секунд"
         val totalSeconds = secondsPerKm.toInt()
         val minutes = totalSeconds / 60
         val seconds = (totalSeconds % 60)
         val roundedSeconds = ((seconds / 5) * 5)
         return when {
-            minutes == 0 -> "$roundedSeconds СЃРµРєСѓРЅРґ"
-            roundedSeconds == 0 -> "$minutes РјРёРЅСѓС‚"
-            else -> "$minutes РјРёРЅСѓС‚ $roundedSeconds СЃРµРєСѓРЅРґ"
+            minutes == 0 -> unitText(roundedSeconds, "секунда", "секунды", "секунд")
+            roundedSeconds == 0 -> unitText(minutes, "минута", "минуты", "минут")
+            else -> "${unitText(minutes, "минута", "минуты", "минут")} ${unitText(roundedSeconds, "секунда", "секунды", "секунд")}"
         }
     }
 
     private fun formatRemainingDistance(remainingKm: Float): String {
-        if (remainingKm <= 0f) return "0 РєРёР»РѕРјРµС‚СЂРѕРІ 0 РјРµС‚СЂРѕРІ"
+        if (remainingKm <= 0f) return "0 метров"
         val kilometers = remainingKm.toInt()
         val meters = ((remainingKm - kilometers) * 1000).toInt()
         return when {
-            kilometers == 0 -> "$meters РјРµС‚СЂРѕРІ"
-            meters == 0 -> when (kilometers) {
-                1 -> "1 РєРёР»РѕРјРµС‚СЂ"
-                in 2..4 -> "$kilometers РєРёР»РѕРјРµС‚СЂР°"
-                else -> "$kilometers РєРёР»РѕРјРµС‚СЂРѕРІ"
-            }
+            kilometers == 0 -> unitText(meters, "метр", "метра", "метров")
+            meters == 0 -> unitText(kilometers, "километр", "километра", "километров")
             else -> {
-                val kmText = when (kilometers) {
-                    1 -> "1 РєРёР»РѕРјРµС‚СЂ"
-                    in 2..4 -> "$kilometers РєРёР»РѕРјРµС‚СЂР°"
-                    else -> "$kilometers РєРёР»РѕРјРµС‚СЂРѕРІ"
-                }
-                val mText = when (meters) {
-                    1 -> "1 РјРµС‚СЂ"
-                    in 2..4 -> "$meters РјРµС‚СЂР°"
-                    else -> "$meters РјРµС‚СЂРѕРІ"
-                }
+                val kmText = unitText(kilometers, "километр", "километра", "километров")
+                val mText = unitText(meters, "метр", "метра", "метров")
                 "$kmText $mText"
             }
         }
+    }
+
+    private fun formatDurationSpeech(totalSec: Int): String {
+        if (totalSec <= 0) return "0 секунд"
+        val minutes = totalSec / 60
+        val seconds = totalSec % 60
+        return when {
+            minutes == 0 -> unitText(seconds, "секунда", "секунды", "секунд")
+            seconds == 0 -> unitText(minutes, "минута", "минуты", "минут")
+            else -> "${unitText(minutes, "минута", "минуты", "минут")} ${unitText(seconds, "секунда", "секунды", "секунд")}"
+        }
+    }
+
+    private fun formatDistanceSpeech(distanceKm: Double): String {
+        return if (distanceKm >= 1.0) {
+            val rounded = String.format(Locale.getDefault(), "%.1f", distanceKm)
+            "$rounded километра"
+        } else {
+            val meters = (distanceKm * 1000.0).toInt()
+            unitText(meters, "метр", "метра", "метров")
+        }
+    }
+
+    private fun unitText(value: Int, one: String, few: String, many: String): String {
+        val mod100 = value % 100
+        val mod10 = value % 10
+        val unit = when {
+            mod100 in 11..14 -> many
+            mod10 == 1 -> one
+            mod10 in 2..4 -> few
+            else -> many
+        }
+        return "$value $unit"
     }
 
     private fun setupFemaleVoice() {
@@ -1453,13 +1542,20 @@ class WorkoutForegroundService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        fusedLocationClient.removeLocationUpdates(locationCallback!!)
+        locationCallback?.let {
+            try {
+                fusedLocationClient.removeLocationUpdates(it)
+            } catch (_: Exception) {
+            }
+        }
         sensorManager.unregisterListener(stepListener)
         stopTicking()
         closeGpxLog()
         if (wakeLock.isHeld) wakeLock.release()
+        if (::ttsWakeLock.isInitialized && ttsWakeLock.isHeld) ttsWakeLock.release()
+        pendingTtsUtterances = 0
         try {
-            textToSpeech?.shutdown()
+            textToSpeech.shutdown()
         } catch (_: Exception) {
         }
     }

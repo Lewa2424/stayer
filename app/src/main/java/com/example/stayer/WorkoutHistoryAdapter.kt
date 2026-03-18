@@ -181,13 +181,14 @@ class WorkoutHistoryAdapter(
         }
 
         private fun bindIntervalDetails(workout: WorkoutHistory) {
-            addSummaryLine("От старта до стопа: ${formatDistance(workout.distance)}")
+            addSummaryLine("Общая дистанция: ${formatDistance(workout.distance)}")
             addSummaryLine("Общее время: ${workout.time}")
+            buildSharedTargetPaceLine(workout)?.let { addSummaryLine(it) }
             bindSegments(workout)
         }
 
         private fun bindCombinedDetails(workout: WorkoutHistory) {
-            addSummaryLine("От старта до стопа: ${formatDistance(workout.distance)}")
+            addSummaryLine("Общая дистанция: ${formatDistance(workout.distance)}")
             addSummaryLine("Общее время: ${workout.time}")
             bindSegments(workout)
         }
@@ -213,12 +214,11 @@ class WorkoutHistoryAdapter(
         }
 
         private fun buildHeaderGoalText(workout: WorkoutHistory): String {
-            workout.goalLabel?.takeIf { it.isNotBlank() }?.let { return it }
-
             return when (workout.workoutMode) {
-                "interval" -> "Интервальная"
+                "interval" -> buildExpandedIntervalHeader(workout.goalLabel)
                 "combined" -> "Комбо"
                 else -> {
+                    workout.goalLabel?.takeIf { it.isNotBlank() }?.let { return it }
                     val parts = mutableListOf<String>()
                     workout.targetDistanceKm?.takeIf { it > 0f }?.let { parts += formatDistance(it) }
                     when {
@@ -233,14 +233,9 @@ class WorkoutHistoryAdapter(
         }
 
         private fun buildNormalDeviation(workout: WorkoutHistory): String? {
-            return if (workout.normalGoalMode == 1 && workout.targetPaceSecPerKm != null) {
-                val actualPace = paceSeconds(workout.elapsedMs, workout.distance) ?: return null
-                formatSignedPaceDelta(actualPace - workout.targetPaceSecPerKm)
-            } else {
-                val targetTime = workout.targetTimeSec ?: return null
-                val actualTime = (workout.elapsedMs / 1000L).toInt().takeIf { it > 0 } ?: parseTimeToSec(workout.time)
-                formatSignedClockDelta(actualTime - targetTime)
-            }
+            val targetTime = workout.targetTimeSec ?: return null
+            val actualTime = (workout.elapsedMs / 1000L).toInt().takeIf { it > 0 } ?: parseTimeToSec(workout.time)
+            return formatSignedClockDelta(actualTime - targetTime)
         }
 
         private fun buildSegmentLine(workout: WorkoutHistory, segment: WorkoutHistorySegment): String {
@@ -250,12 +245,15 @@ class WorkoutHistoryAdapter(
                 else -> null
             }
             val title = if (typeLabel != null) "${segment.title} ($typeLabel)" else segment.title
-            val parts = mutableListOf<String>()
-            segment.targetPaceSecPerKm?.let { parts += "цель ${formatSecPerKm(it)}" }
-            parts += "факт ${formatSecPerKm(segment.actualPaceSecPerKm)}"
-            parts += formatClock(segment.durationSec)
-            parts += formatDistance(segment.distanceKm)
-            return "$title: ${parts.joinToString(", ")}"
+            return buildString {
+                append(title)
+                append('\n')
+                append("Темп: ")
+                append(formatSecPerKm(segment.actualPaceSecPerKm))
+                append('\n')
+                append("Дистанция: ")
+                append(formatDistance(segment.distanceKm))
+            }
         }
 
         private fun addSummaryLine(text: String, secondary: Boolean = false) {
@@ -270,6 +268,7 @@ class WorkoutHistoryAdapter(
             return TextView(context).apply {
                 this.text = text
                 textSize = 15f
+                setLineSpacing(0f, 1.1f)
                 setTextColor(if (secondary) secondaryTextColor else primaryTextColor)
                 layoutParams = LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
@@ -290,6 +289,29 @@ class WorkoutHistoryAdapter(
                 2 -> parts[0] * 60 + parts[1]
                 3 -> parts[0] * 3600 + parts[1] * 60 + parts[2]
                 else -> 0
+            }
+        }
+
+        private fun buildExpandedIntervalHeader(goalLabel: String?): String {
+            val compact = goalLabel?.trim().orEmpty()
+            val match = Regex("""(\d+)×(\d{2}:\d{2})\s*/\s*(\d{2}:\d{2})""").matchEntire(compact)
+            if (match != null) {
+                val repeats = match.groupValues[1]
+                val work = match.groupValues[2]
+                val rest = match.groupValues[3]
+                return "Ускорения: ${repeats}×${work} мин.\nОтдых: ${rest} мин."
+            }
+            return compact.ifBlank { "Интервальная" }
+        }
+
+        private fun buildSharedTargetPaceLine(workout: WorkoutHistory): String? {
+            val targetPaces = workout.segmentDetails.orEmpty()
+                .mapNotNull { it.targetPaceSecPerKm }
+                .distinct()
+            return if (targetPaces.size == 1) {
+                "Цель участков: ${formatSecPerKm(targetPaces.first())}"
+            } else {
+                null
             }
         }
     }
