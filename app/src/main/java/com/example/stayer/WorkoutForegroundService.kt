@@ -1,4 +1,4 @@
-﻿package com.example.stayer
+package com.example.stayer
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -33,6 +33,9 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.gson.Gson
 import com.example.stayer.engine.CadenceFallbackEngine
+import com.example.stayer.engine.HeartRateAnalyzer
+import com.example.stayer.health.HealthConnectManager
+import kotlinx.coroutines.*
 import java.io.File
 import java.io.FileWriter
 import java.text.SimpleDateFormat
@@ -41,6 +44,8 @@ import java.util.Locale
 import java.util.TimeZone
 import kotlin.math.abs
 import kotlin.math.roundToInt
+
+enum class SpeechPriority { PACER, AUXILIARY }
 
 class WorkoutForegroundService : Service() {
 
@@ -113,7 +118,7 @@ class WorkoutForegroundService : Service() {
     private var lastAcceptedRawLocation: Location? = null
     private var lastSmoothedLocation: Location? = null
     // РЈРјРµРЅСЊС€РµРЅРѕ РѕРєРЅРѕ СЃРіР»Р°Р¶РёРІР°РЅРёСЏ СЃ 7 РґРѕ 3 РґР»СЏ СЃРЅРёР¶РµРЅРёСЏ СЌС„С„РµРєС‚Р° "СЃСЂРµР·Р°РЅРёСЏ СѓРіР»РѕРІ" РЅР° РїРѕРІРѕСЂРѕС‚Р°С…
-    private val smoother = LocationSmoother(windowSize = 3)
+    private var smoother = LocationSmoother(windowSize = 3)
 
     private val tickHandler = Handler(Looper.getMainLooper())
     private var tickRunnable: Runnable? = null
@@ -192,6 +197,17 @@ class WorkoutForegroundService : Service() {
     // GPX Logging state
     private var gpxWriter: FileWriter? = null
     private var gpxFile: File? = null
+
+    // === Heart Rate Monitor ===
+    private var useHeartRate = false
+    private var heartRateAnalyzer: HeartRateAnalyzer? = null
+    private var hrScope: CoroutineScope? = null
+    private var hrQueryStartTimeMs: Long = 0L
+    private var lastProcessedBpmTimestamp: java.time.Instant = java.time.Instant.EPOCH
+    private var currentBpm: Int? = null
+    private val bpmSamples = mutableListOf<Int>()
+    private var hrNullCount = 0
+    private var lastPacerSpeechTimeMs: Long = 0L
 
     // Fallback Engine (Intelligent Steps Calibration)
     private lateinit var fallbackEngine: CadenceFallbackEngine
@@ -306,16 +322,55 @@ class WorkoutForegroundService : Service() {
 
             // Load interval scenario on fresh start
             loadWorkoutModeAndScenario()
+
+            // Apply location type: stadium=smoothing(3), park=no smoothing(1)
+            val goalPrefs = getSharedPreferences("Goals", MODE_PRIVATE)
+            val locationType = goalPrefs.getInt(GoalActivity.LOCATION_TYPE, 0)
+            smoother = LocationSmoother(windowSize = if (locationType == 1) 1 else 3)
+            writeLog("SMOOTHER: windowSize=${if (locationType == 1) 1 else 3} (locationType=$locationType)")
+
+            // Apply heart rate setting
+            useHeartRate = goalPrefs.getBoolean(GoalActivity.USE_HEART_RATE, false)
+            if (useHeartRate) {
+                val settingsPrefs = getSharedPreferences("settings", MODE_PRIVATE)
+                val greenMax = settingsPrefs.getInt("PREF_HR_GREEN_MAX", 140)
+                val yellowMax = settingsPrefs.getInt("PREF_HR_YELLOW_MAX", 160)
+                heartRateAnalyzer = HeartRateAnalyzer(greenMax, yellowMax)
+                hrQueryStartTimeMs = System.currentTimeMillis()
+                lastProcessedBpmTimestamp = java.time.Instant.EPOCH
+                currentBpm = null
+                bpmSamples.clear()
+                hrNullCount = 0
+                startHrPolling()
+                writeLog("HR_ENABLED: greenMax=$greenMax, yellowMax=$yellowMax")
+            } else {
+                writeLog("HR_DISABLED")
+            }
         } else if (isPaused) {
             isPaused = false
             if (pausedAtMs > 0L) {
                 totalPausedMs += (now - pausedAtMs)
             }
             pausedAtMs = 0L
-            // Р’Р°Р¶РЅРѕ: РїРѕСЃР»Рµ РїР°СѓР·С‹ СЃР±СЂР°СЃС‹РІР°РµРј lastLocation, РёРЅР°С‡Рµ Р±СѓРґРµС‚ СЃРєР°С‡РѕРє
+
+            // После паузы сбрасываем lastLocation, иначе будет скачок
+
             resetTrackState()
+
             paceCorrector.reset()
+
+            // Resume HR polling with fresh timestamp
+
+            if (useHeartRate) {
+
+                hrQueryStartTimeMs = System.currentTimeMillis()
+
+                startHrPolling()
+
+            }
+
         }
+
 
         persistState()
         writeLog("SERVICE_START: after init mode=$activeWorkoutModeInt, startTimeMs=$startTimeMs, segmentIndex=$segmentIndex, lastAnnouncedSegmentIndex=$lastAnnouncedSegmentIndex")
@@ -341,6 +396,7 @@ class WorkoutForegroundService : Service() {
         stopLocationUpdates()
         sensorManager.unregisterListener(stepListener)
         stopTicking()
+        stopHrPolling()
         persistState()
         broadcastUpdate()
         updateNotification()
@@ -601,6 +657,9 @@ class WorkoutForegroundService : Service() {
             } else {
                 putExtra("interval_active", false)
             }
+
+            // Heart rate
+            currentBpm?.let { putExtra("EXTRA_CURRENT_BPM", it) }
         }
         sendBroadcast(intent)
     }
@@ -774,7 +833,7 @@ class WorkoutForegroundService : Service() {
             if (window.size == windowSize) {
                 window.removeFirst()
             }
-            window.addLast(location)
+            window.add(location)
 
             var latSum = 0.0
             var lonSum = 0.0
@@ -1072,7 +1131,7 @@ class WorkoutForegroundService : Service() {
 
         // 4) Collect rolling speed data during stable phase
         if (stableStarted && (seg.type == "WORK" || seg.type == "REST" || seg.type == "WARMUP" || seg.type == "COOLDOWN")) {
-            stableDeltasM.addLast(deltaM)
+            stableDeltasM.add(deltaM)
             while (stableDeltasM.size > speedWindowSec) stableDeltasM.removeFirst()
         }
 
@@ -1371,10 +1430,27 @@ class WorkoutForegroundService : Service() {
         sendBroadcast(intent)
     }
 
-    private fun speak(text: String, condition: String? = null) {
+    private fun speak(text: String, condition: String? = null, priority: SpeechPriority = SpeechPriority.PACER): Boolean {
+        val now = System.currentTimeMillis()
+
+        if (priority == SpeechPriority.AUXILIARY) {
+            // Drop if TTS is currently speaking
+            if (pendingTtsUtterances > 0) {
+                writeLog("SPEECH_DROPPED: Auxiliary TTS busy. Text: $text")
+                return false
+            }
+            // Drop if pacer spoke less than 15s ago
+            if (now - lastPacerSpeechTimeMs < 15_000L) {
+                writeLog("SPEECH_DROPPED: Pacer silence window active. Text: $text")
+                return false
+            }
+        } else {
+            lastPacerSpeechTimeMs = now
+        }
+
         val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault()).format(Date())
         val effectiveCondition = condition ?: "не указано"
-        val logLine = "[$timestamp] СПИЧ: \"$text\" | УСЛОВИЕ: $effectiveCondition\n"
+        val logLine = "[$timestamp] СПИЧ: \"$text\" | УСЛОВИЕ: $effectiveCondition | ПРИОРИТЕТ: $priority\n"
         try {
             val logFile = File(getExternalFilesDir(null), "stayer_log.txt")
             FileWriter(logFile, true).use {
@@ -1394,6 +1470,7 @@ class WorkoutForegroundService : Service() {
         }
 
         textToSpeech.speak(text, TextToSpeech.QUEUE_ADD, null, "pace_${System.currentTimeMillis()}")
+        return true
     }
 
     private fun handleTtsUtteranceFinished() {
@@ -1542,6 +1619,7 @@ class WorkoutForegroundService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        stopHrPolling()
         locationCallback?.let {
             try {
                 fusedLocationClient.removeLocationUpdates(it)
@@ -1558,6 +1636,54 @@ class WorkoutForegroundService : Service() {
             textToSpeech.shutdown()
         } catch (_: Exception) {
         }
+    }
+
+    // === Heart Rate Polling ===
+    private fun startHrPolling() {
+        stopHrPolling()
+        hrScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        hrScope?.launch {
+            while (isActive) {
+                delay(30_000L)
+                if (!isRunning || isPaused) continue
+                try {
+                    val record = HealthConnectManager.readLatestHeartRate(this@WorkoutForegroundService, hrQueryStartTimeMs)
+                    if (record != null) {
+                        val lastSample = record.samples.lastOrNull()
+                        if (lastSample != null && record.endTime > lastProcessedBpmTimestamp) {
+                            lastProcessedBpmTimestamp = record.endTime
+                            val bpm = lastSample.beatsPerMinute.toInt()
+                            currentBpm = bpm
+                            bpmSamples.add(bpm)
+                            hrNullCount = 0
+                            writeLog("HR_READ: bpm=$bpm, time=${record.endTime}")
+
+                            val analyzer = heartRateAnalyzer
+                            if (analyzer != null) {
+                                val now = System.currentTimeMillis()
+                                val alert = analyzer.processBpm(bpm, now)
+                                if (alert != null) {
+                                    val delivered = speak(alert.text, "Пульс: $bpm", SpeechPriority.AUXILIARY)
+                                    analyzer.onAlertDeliveryResult(delivered, alert.isRedZone, now)
+                                }
+                            }
+                            // Trigger UI update on main thread
+                            android.os.Handler(android.os.Looper.getMainLooper()).post { broadcastUpdate() }
+                        }
+                    } else {
+                        hrNullCount++
+                        if (hrNullCount >= 6) currentBpm = null
+                    }
+                } catch (e: Exception) {
+                    writeLog("HR_ERROR: ${e.message}")
+                }
+            }
+        }
+    }
+
+    private fun stopHrPolling() {
+        hrScope?.cancel()
+        hrScope = null
     }
 
     private fun initGpxLog() {
@@ -1682,7 +1808,11 @@ class WorkoutForegroundService : Service() {
             else -> "normal"
         }
         
-        writeLog("SNAPSHOT: dist=$finalDistanceKm, elapsed=$finalElapsedMs, mode=$mode")
+        val avgHeartRate = if (bpmSamples.isNotEmpty()) {
+            bpmSamples.average().roundToInt()
+        } else null
+        
+        writeLog("SNAPSHOT: dist=$finalDistanceKm, elapsed=$finalElapsedMs, mode=$mode, avgHr=$avgHeartRate")
         
         return WorkoutSummarySnapshot(
             distanceKm = finalDistanceKm,
@@ -1698,6 +1828,7 @@ class WorkoutForegroundService : Service() {
             avgPaceRestSec = avgRest,
             avgPaceWithoutWarmupSec = avgNoWarmup,
             avgPaceTotalSec = avgTotal,
+            avgHeartRate = avgHeartRate,
             segmentDetails = buildSnapshotSegmentDetails()
         )
     }

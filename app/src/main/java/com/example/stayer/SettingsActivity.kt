@@ -74,6 +74,50 @@ class SettingsActivity : ComponentActivity() {
                         )
                         
                         HorizontalDivider()
+
+                        // --- Настройки пульсометра ---
+                        val settingsPrefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
+                        var greenMax by remember { mutableFloatStateOf(settingsPrefs.getInt("PREF_HR_GREEN_MAX", 140).toFloat()) }
+                        var yellowMax by remember { mutableFloatStateOf(settingsPrefs.getInt("PREF_HR_YELLOW_MAX", 160).toFloat()) }
+
+                        ListItem(
+                            headlineContent = { Text("Зоны пульса (Health Connect)") },
+                            supportingContent = {
+                                Column(modifier = Modifier.padding(top = 8.dp)) {
+                                    Text("Верхняя граница зеленой зоны: ${greenMax.toInt()} BPM")
+                                    Slider(
+                                        value = greenMax,
+                                        onValueChange = { newValue ->
+                                            if (newValue < yellowMax) { // greenMax cannot exceed yellowMax
+                                                greenMax = newValue
+                                                settingsPrefs.edit().putInt("PREF_HR_GREEN_MAX", newValue.toInt()).apply()
+                                            }
+                                        },
+                                        valueRange = 100f..180f,
+                                        steps = 80
+                                    )
+                                    Spacer(Modifier.height(8.dp))
+                                    Text("Верхняя граница желтой зоны: ${yellowMax.toInt()} BPM")
+                                    Slider(
+                                        value = yellowMax,
+                                        onValueChange = { newValue ->
+                                            if (newValue > greenMax) { // yellowMax must be above greenMax
+                                                yellowMax = newValue
+                                                settingsPrefs.edit().putInt("PREF_HR_YELLOW_MAX", newValue.toInt()).apply()
+                                            }
+                                        },
+                                        valueRange = 120f..200f,
+                                        steps = 80
+                                    )
+                                    Text(
+                                        text = "Выше ${yellowMax.toInt()} BPM — Красная зона",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            }
+                        )
+                        HorizontalDivider()
                     }
                 }
             }

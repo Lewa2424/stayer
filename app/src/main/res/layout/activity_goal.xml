@@ -386,6 +386,77 @@
                 android:layout_marginTop="8dp"/>
         </LinearLayout>
 
+        <!-- Тип локации (влияет на точность GPS) -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Тип маршрута"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:layout_marginTop="24dp"
+            android:layout_marginBottom="4dp"/>
+
+        <RadioGroup
+            android:id="@+id/rgLocationType"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <RadioButton
+                android:id="@+id/rbStadium"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🏟️ Стадион"
+                android:checked="true"/>
+
+            <RadioButton
+                android:id="@+id/rbPark"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🌳 Парк / Улица"
+                android:layout_marginStart="16dp"/>
+        </RadioGroup>
+
+        <TextView
+            android:id="@+id/tvLocationHint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Стадион: сглаживание GPS (точнее на прямых). Парк: без сглаживания (точнее на поворотах)."
+            android:textSize="12sp"
+            android:textColor="#888888"
+            android:layout_marginTop="4dp"/>
+
+        <!-- Пульсометр -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="24dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="❤️ Использовать пульсометр"
+                android:textSize="16sp"
+                android:textStyle="bold"/>
+
+            <Switch
+                android:id="@+id/switchHeartRate"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"/>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tvHeartRateHint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Чтение пульса через Health Connect (Samsung Health, Google Fit)"
+            android:textSize="12sp"
+            android:textColor="#888888"
+            android:layout_marginTop="4dp"/>
+
         <!-- Кнопка "Назад" -->
         <Button
             android:id="@+id/backButton"

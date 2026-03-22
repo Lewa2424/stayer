@@ -23,6 +23,7 @@ data class WorkoutSummarySnapshot(
     val avgPaceRestSec: Int?,
     val avgPaceWithoutWarmupSec: Int?,
     val avgPaceTotalSec: Int?,
+    val avgHeartRate: Int? = null,
     val segmentDetails: List<WorkoutHistorySegment>? = null,
     val timestamp: Long = System.currentTimeMillis()
 ) {
@@ -53,6 +54,7 @@ data class WorkoutSummarySnapshot(
             avgPaceRestSec = avgPaceRestSec,
             avgPaceWithoutWarmupSec = avgPaceWithoutWarmupSec,
             avgPaceTotalSec = avgPaceTotalSec,
+            avgHeartRate = avgHeartRate,
             segmentDetails = segmentDetails
         )
     }

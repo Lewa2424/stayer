@@ -163,7 +163,7 @@ class IntervalSimulationEngine(
 
         // 4) Collect rolling speed data during stable phase
         if (stableStarted && (seg.type == "WORK" || seg.type == "REST")) {
-            stableDeltasM.addLast(deltaM)
+            stableDeltasM.add(deltaM)
             while (stableDeltasM.size > speedWindowSec) stableDeltasM.removeFirst()
         }
 

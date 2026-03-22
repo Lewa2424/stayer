@@ -17,6 +17,9 @@ class CadenceFallbackEngine(private val context: Context) {
     private var quarantineTicks = 0
     private var ticksSinceLastGps = 0
 
+    // --- Distance tracking during BLIND/QUARANTINE for top-up ---
+    private var blindStepDistanceM = 0.0
+
     // --- Cadence Calculation (Ring Buffer) ---
     private val stepHistory = ArrayDeque<Int>()
     private val historyWindowSize = 10 // 10 seconds
@@ -30,7 +33,7 @@ class CadenceFallbackEngine(private val context: Context) {
 
     // --- Constants ---
     private val REQUIRED_STABLE_TICKS_FOR_CALIBRATION = 60
-    private val MAX_TICKS_WITHOUT_GPS = 7
+    private val MAX_TICKS_WITHOUT_GPS = 3  // Reduced from 7: switch to steps faster
     private val QUARANTINE_DURATION_TICKS = 3
 
     /**
@@ -115,6 +118,7 @@ class CadenceFallbackEngine(private val context: Context) {
         if (currentState == State.STABLE && ticksSinceLastGps > MAX_TICKS_WITHOUT_GPS) {
             // Signal lost -> go BLIND
             currentState = State.BLIND
+            blindStepDistanceM = 0.0
             stableTicks = 0
             currentPhaseStepCount = 0
             currentPhaseGpsDistanceM = 0.0
@@ -153,7 +157,9 @@ class CadenceFallbackEngine(private val context: Context) {
             }
             State.BLIND -> {
                 val strideMeters = getStrideLengthForCadence(currentCadence)
-                stepDelta * strideMeters
+                val dist = stepDelta * strideMeters
+                blindStepDistanceM += dist
+                dist
             }
             State.QUARANTINE -> {
                 quarantineTicks++
@@ -165,11 +171,12 @@ class CadenceFallbackEngine(private val context: Context) {
                     quarantineTicks = 0
                     currentPhaseStepCount = 0
                     currentPhaseGpsDistanceM = 0.0
+                    blindStepDistanceM = 0.0
                 }
                 
-                // Still use fallback distance while in quarantine
-                val strideMeters = getStrideLengthForCadence(currentCadence)
-                stepDelta * strideMeters
+                // GPS is trusted during quarantine (processGpsAccepted returns deltaMeters),
+                // so we return 0 here to avoid double-counting, like STABLE state.
+                0.0
             }
         }
     }
@@ -194,13 +201,18 @@ class CadenceFallbackEngine(private val context: Context) {
                 // First good point after blind phase. Enter QUARANTINE.
                 currentState = State.QUARANTINE
                 quarantineTicks = 0
-                // Crucial: Reject this huge GPS delta, we already covered it with steps!
-                0.0
+                // Top-up: if GPS says we moved MORE than steps estimated,
+                // add the difference. Steps are the minimum, GPS can only add.
+                val topUp = (deltaMeters - blindStepDistanceM).coerceAtLeast(0.0)
+                // Don't reset blindStepDistanceM yet — QUARANTINE continues tracking
+                topUp
             }
             State.QUARANTINE -> {
-                // We are inside quarantine, GPS points are good, but we ignore their distance
-                // because we are returning fallback distance in processTick().
-                0.0
+                // GPS points during quarantine: trust GPS if it's reasonable.
+                // Return the GPS delta directly (step distance from processTick
+                // is still being added, so we only return the excess over step estimate).
+                // For per-tick quarantine points, GPS delta is small and reliable.
+                deltaMeters
             }
         }
     }
@@ -209,17 +221,12 @@ class CadenceFallbackEngine(private val context: Context) {
      * Called when the filtering layer receives a point but rejects it (e.g. speed jump).
      */
     fun processGpsRejected(reason: String) {
-        // Only react to major anomalies (like jumps/teleports) by instantly switching to BLIND.
-        // Minor rejections (bad accuracy, too slow/close) should just be ignored, 
-        // letting the `ticksSinceLastGps` timeout naturally handle the loss of good signal.
-        if (!reason.startsWith("Too fast") && !reason.startsWith("Jump")) {
-            return
-        }
-
+        // Any GPS rejection indicates signal trouble → switch to step fallback immediately.
+        // This eliminates the "dead zone" where neither GPS nor steps counted distance.
         when (currentState) {
             State.STABLE -> {
-                // A rejected point drops us immediately to BLIND mode
                 currentState = State.BLIND
+                blindStepDistanceM = 0.0
                 stableTicks = 0
                 currentPhaseStepCount = 0
                 currentPhaseGpsDistanceM = 0.0
@@ -228,6 +235,7 @@ class CadenceFallbackEngine(private val context: Context) {
                 // Failed quarantine -> back to BLIND
                 currentState = State.BLIND
                 quarantineTicks = 0
+                // Keep accumulated blindStepDistanceM — it continues
             }
             State.BLIND -> {
                 // Already blind, do nothing

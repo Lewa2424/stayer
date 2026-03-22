@@ -1,0 +1,275 @@
+[2026-03-09 16:47:14.685] UI_RESET_DONE
+[2026-03-09 16:47:14.694] SERVICE: Received SAVE_ACK from Activity
+[2026-03-09 16:47:14.695] SERVICE: Performing full reset
+[2026-03-09 16:47:14.697] SERVICE: Pending snapshot cleared
+[2026-03-09 16:47:14.698] WORKOUT_RESET_DONE
+[2026-03-09 17:13:51.181] === App started ===
+[2026-03-09 17:13:51.302] GPS_STATUS: Started pre-start location updates
+[2026-03-09 17:13:51.312] SCREEN: MainActivity resumed, goalValue=Интервалы, goalSupporting=≈15:00 • 2 сер., mode=1
+[2026-03-09 17:13:53.183] USER_ACTION: History icon pressed
+[2026-03-09 17:13:53.219] GPS_STATUS: Stopped pre-start location updates
+[2026-03-09 17:43:19.463] === App started ===
+[2026-03-09 17:43:19.580] GPS_STATUS: Started pre-start location updates
+[2026-03-09 17:43:19.590] SCREEN: MainActivity resumed, goalValue=Интервалы, goalSupporting=≈15:00 • 2 сер., mode=1
+[2026-03-09 17:43:23.434] USER_ACTION: Start pressed - starting workout
+[2026-03-09 17:43:23.436] GPS_STATUS: Stopped pre-start location updates
+[2026-03-09 17:43:23.448] === Workout started ===
+[2026-03-09 17:43:23.451] Start time: 2026-03-09 17:43:23
+[2026-03-09 17:43:23.500] SERVICE_START: before start branch isRunning=false, isPaused=false, startTimeMs=0, elapsed=0
+[2026-03-09 17:43:23.513] SCENARIO_LOAD: mode=1, scenarioSegments=6
+[2026-03-09 17:43:23.514] SCENARIO_RESET: segmentIndex=0, lastAnnouncedSegmentIndex=-1, segmentStartElapsedSec=0, segmentStartDistanceM=0.0
+[2026-03-09 17:43:23.515] SERVICE_START: after init mode=1, startTimeMs=1773071003508, segmentIndex=0, lastAnnouncedSegmentIndex=-1
+[2026-03-09 17:43:23.626] TICK: first active tick mode=1, distance=0.0, elapsed=118, segmentIndex=0
+[2026-03-09 17:43:23.630] INTERVAL_TICK: segmentIndex=0, segType=WARMUP, elapsedSec=0, inSegSec=0, startElapsedSec=0
+[2026-03-09 17:43:23.631] INTERVAL_ANNOUNCE: segmentIndex=0, segType=WARMUP, targetPace=null, duration=60, distanceKm=null
+[2026-03-09 17:43:23.632] СПИЧ: "Разминка. 1 минута." | УСЛОВИЕ: Начало нового сегмента (тип: WARMUP, длительность: 60 сек)
+[2026-03-09 17:43:29.124] USER_ACTION: Pause pressed
+[2026-03-09 17:43:29.127] WORKOUT: Paused at 2026-03-09 17:43:29
+[2026-03-09 17:43:39.094] USER_ACTION: Long press - stopping and resetting workout
+[2026-03-09 17:43:39.096] WORKOUT_FINISH_REQUESTED
+[2026-03-09 17:43:39.106] SERVICE: handleStopAndReset called - building final snapshot BEFORE reset
+[2026-03-09 17:43:39.107] SERVICE: Building final snapshot...
+[2026-03-09 17:43:39.110] SNAPSHOT: dist=0.0, elapsed=5627, mode=interval
+[2026-03-09 17:43:39.111] WORKOUT_SAVE_ABORTED_INVALID_SNAPSHOT: distance=0.0, elapsed=5627
+[2026-03-09 17:43:39.112] SERVICE: Performing full reset
+[2026-03-09 17:43:39.114] SERVICE: Pending snapshot cleared
+[2026-03-09 17:43:39.115] WORKOUT_RESET_DONE
+[2026-03-09 17:53:47.331] === App started ===
+[2026-03-09 17:53:47.433] ACTIVITY_ON_START: registering receivers
+[2026-03-09 17:53:47.448] GPS_STATUS: Started pre-start location updates
+[2026-03-09 17:53:47.457] SCREEN: MainActivity resumed, goalValue=Интервалы, goalSupporting=≈15:00 • 2 сер., mode=1
+[2026-03-09 17:53:50.831] GPS_STATUS: Stopped pre-start location updates
+[2026-03-09 17:53:51.209] ACTIVITY_ON_STOP: begin unregister receivers
+[2026-03-09 17:53:51.220] ACTIVITY_ON_STOP: workoutUpdateReceiver unregistered
+[2026-03-09 17:53:51.229] ACTIVITY_ON_STOP: finalSnapshotReceiver unregistered
+[2026-03-09 17:53:51.234] ACTIVITY_ON_STOP: end
+[2026-03-09 18:59:32.581] === App started ===
+[2026-03-09 18:59:32.704] ACTIVITY_ON_START: registering receivers
+[2026-03-09 18:59:32.720] GPS_STATUS: Started pre-start location updates
+[2026-03-09 18:59:32.730] SCREEN: MainActivity resumed, goalValue=Интервалы, goalSupporting=≈15:00 • 2 сер., mode=1
+[2026-03-09 18:59:37.428] USER_ACTION: Goal tile pressed
+[2026-03-09 18:59:37.458] GPS_STATUS: Stopped pre-start location updates
+[2026-03-09 18:59:38.060] ACTIVITY_ON_STOP: begin unregister receivers
+[2026-03-09 18:59:38.063] ACTIVITY_ON_STOP: workoutUpdateReceiver unregistered
+[2026-03-09 18:59:38.065] ACTIVITY_ON_STOP: finalSnapshotReceiver unregistered
+[2026-03-09 18:59:38.066] ACTIVITY_ON_STOP: end
+[2026-03-09 19:00:00.133] ACTIVITY_ON_START: registering receivers
+[2026-03-09 19:00:00.139] GPS_STATUS: Started pre-start location updates
+[2026-03-09 19:00:00.147] SCREEN: MainActivity resumed, goalValue=Интервалы, goalSupporting=≈12:00 • 2 сер., mode=1
+[2026-03-09 19:00:17.936] GPS_STATUS: Stopped pre-start location updates
+[2026-03-09 19:00:18.012] ACTIVITY_ON_STOP: begin unregister receivers
+[2026-03-09 19:00:18.019] ACTIVITY_ON_STOP: workoutUpdateReceiver unregistered
+[2026-03-09 19:00:18.023] ACTIVITY_ON_STOP: finalSnapshotReceiver unregistered
+[2026-03-09 19:00:18.026] ACTIVITY_ON_STOP: end
+[2026-03-09 19:01:42.271] ACTIVITY_ON_START: registering receivers
+[2026-03-09 19:01:42.291] GPS_STATUS: Started pre-start location updates
+[2026-03-09 19:01:42.323] SCREEN: MainActivity resumed, goalValue=Интервалы, goalSupporting=≈12:00 • 2 сер., mode=1
+[2026-03-09 19:01:51.685] USER_ACTION: Start pressed - starting workout
+[2026-03-09 19:01:51.686] GPS_STATUS: Stopped pre-start location updates
+[2026-03-09 19:01:51.693] === Workout started ===
+[2026-03-09 19:01:51.694] Start time: 2026-03-09 19:01:51
+[2026-03-09 19:01:51.727] SERVICE_START: before start branch isRunning=false, isPaused=false, startTimeMs=0, elapsed=0
+[2026-03-09 19:01:51.735] SCENARIO_LOAD: mode=1, scenarioSegments=6
+[2026-03-09 19:01:51.736] SCENARIO_RESET: segmentIndex=0, lastAnnouncedSegmentIndex=-1, segmentStartElapsedSec=0, segmentStartDistanceM=0.0
+[2026-03-09 19:01:51.737] SERVICE_START: after init mode=1, startTimeMs=1773075711730, segmentIndex=0, lastAnnouncedSegmentIndex=-1
+[2026-03-09 19:01:51.838] TICK: first active tick mode=1, distance=0.0, elapsed=108, segmentIndex=0
+[2026-03-09 19:01:51.843] INTERVAL_TICK: segmentIndex=0, segType=WARMUP, elapsedSec=0, inSegSec=0, startElapsedSec=0
+[2026-03-09 19:01:51.843] INTERVAL_ANNOUNCE: segmentIndex=0, segType=WARMUP, targetPace=null, duration=60, distanceKm=null
+[2026-03-09 19:01:51.844] СПИЧ: "Разминка. 1 минута." | УСЛОВИЕ: Начало нового сегмента (тип: WARMUP, длительность: 60 сек)
+[2026-03-09 19:02:01.000] ACTIVITY_ON_STOP: begin unregister receivers
+[2026-03-09 19:02:01.001] ACTIVITY_ON_STOP: workoutUpdateReceiver unregistered
+[2026-03-09 19:02:01.003] ACTIVITY_ON_STOP: finalSnapshotReceiver unregistered
+[2026-03-09 19:02:01.004] ACTIVITY_ON_STOP: end
+[2026-03-09 19:02:41.846] СПИЧ: "Смена через 10 секунд" | УСЛОВИЕ: Осталось 10 секунд до конца текущего сегмента (тип: WARMUP)
+[2026-03-09 19:02:53.070] INTERVAL_TICK: segmentIndex=1, segType=WORK, elapsedSec=61, inSegSec=1, startElapsedSec=60
+[2026-03-09 19:02:53.076] INTERVAL_ANNOUNCE: segmentIndex=1, segType=WORK, targetPace=690, duration=240, distanceKm=null
+[2026-03-09 19:02:53.080] СПИЧ: "Работа. 4 минуты. Темп 11 минут 30 секунд." | УСЛОВИЕ: Начало нового сегмента (тип: WORK, длительность: 240 сек)
+[2026-03-09 19:03:26.753] СПИЧ: "Быстрее" | УСЛОВИЕ: Корректировщик темпа (интервал). Целевой: 11 минут 30 секунд
+[2026-03-09 19:04:02.369] СПИЧ: "Быстрее" | УСЛОВИЕ: Корректировщик темпа (интервал). Целевой: 11 минут 30 секунд
+[2026-03-09 19:04:40.086] СПИЧ: "Медленнее" | УСЛОВИЕ: Корректировщик темпа (интервал). Целевой: 11 минут 30 секунд
+[2026-03-09 19:05:34.530] ACTIVITY_ON_START: registering receivers
+[2026-03-09 19:05:34.587] SCREEN: MainActivity resumed, goalValue=Интервалы, goalSupporting=≈12:00 • 2 сер., mode=1
+[2026-03-09 19:05:35.330] USER_ACTION: Pause pressed
+[2026-03-09 19:05:35.336] WORKOUT: Paused at 2026-03-09 19:05:35
+[2026-03-09 19:05:44.659] USER_ACTION: Start pressed - resuming workout
+[2026-03-09 19:05:44.662] WORKOUT: Resumed after pause, totalPausedDuration=9330ms
+[2026-03-09 19:05:44.669] SERVICE_START: before start branch isRunning=true, isPaused=true, startTimeMs=1773075711730, elapsed=223608
+[2026-03-09 19:05:44.670] SERVICE_START: after init mode=1, startTimeMs=1773075711730, segmentIndex=1, lastAnnouncedSegmentIndex=1
+[2026-03-09 19:05:44.686] TICK: first active tick mode=1, distance=0.3033369, elapsed=223623, segmentIndex=1
+[2026-03-09 19:05:54.704] ACTIVITY_ON_STOP: begin unregister receivers
+[2026-03-09 19:05:54.717] ACTIVITY_ON_STOP: workoutUpdateReceiver unregistered
+[2026-03-09 19:05:54.720] ACTIVITY_ON_STOP: finalSnapshotReceiver unregistered
+[2026-03-09 19:05:54.723] ACTIVITY_ON_STOP: end
+[2026-03-09 19:06:22.303] СПИЧ: "Медленнее" | УСЛОВИЕ: Корректировщик темпа (интервал). Целевой: 11 минут 30 секунд
+[2026-03-09 19:06:51.861] СПИЧ: "Смена через 10 секунд" | УСЛОВИЕ: Осталось 10 секунд до конца текущего сегмента (тип: WORK)
+[2026-03-09 19:07:02.023] СПИЧ: "Отличный темп. Так держать." | УСЛОВИЕ: Фаза работы завершена. Фактический темп: 11 минут 43 секунды, целевой: 11 минут 30 секунд
+[2026-03-09 19:07:03.068] INTERVAL_TICK: segmentIndex=2, segType=REST, elapsedSec=302, inSegSec=2, startElapsedSec=300
+[2026-03-09 19:07:03.075] INTERVAL_ANNOUNCE: segmentIndex=2, segType=REST, targetPace=720, duration=60, distanceKm=null
+[2026-03-09 19:07:03.079] СПИЧ: "Отдых. 1 минута. Темп 12 минут." | УСЛОВИЕ: Начало нового сегмента (тип: REST, длительность: 60 сек)
+[2026-03-09 19:07:52.011] СПИЧ: "Смена через 10 секунд" | УСЛОВИЕ: Осталось 10 секунд до конца текущего сегмента (тип: REST)
+[2026-03-09 19:08:02.239] INTERVAL_TICK: segmentIndex=3, segType=WORK, elapsedSec=361, inSegSec=1, startElapsedSec=360
+[2026-03-09 19:08:02.245] INTERVAL_ANNOUNCE: segmentIndex=3, segType=WORK, targetPace=690, duration=240, distanceKm=null
+[2026-03-09 19:08:02.249] СПИЧ: "Работа. 4 минуты. Темп 11 минут 30 секунд." | УСЛОВИЕ: Начало нового сегмента (тип: WORK, длительность: 240 сек)
+[2026-03-09 19:08:44.068] СПИЧ: "Быстрее" | УСЛОВИЕ: Корректировщик темпа (интервал). Целевой: 11 минут 30 секунд
+[2026-03-09 19:09:21.785] СПИЧ: "Медленнее" | УСЛОВИЕ: Корректировщик темпа (интервал). Целевой: 11 минут 30 секунд
+[2026-03-09 19:09:57.467] СПИЧ: "Медленнее" | УСЛОВИЕ: Корректировщик темпа (интервал). Целевой: 11 минут 30 секунд
+[2026-03-09 19:10:10.281] ACTIVITY_ON_START: registering receivers
+[2026-03-09 19:10:10.298] SCREEN: MainActivity resumed, goalValue=Интервалы, goalSupporting=≈12:00 • 2 сер., mode=1
+[2026-03-09 19:10:15.469] ACTIVITY_ON_STOP: begin unregister receivers
+[2026-03-09 19:10:15.476] ACTIVITY_ON_STOP: workoutUpdateReceiver unregistered
+[2026-03-09 19:10:15.480] ACTIVITY_ON_STOP: finalSnapshotReceiver unregistered
+[2026-03-09 19:10:15.482] ACTIVITY_ON_STOP: end
+[2026-03-09 19:10:50.457] СПИЧ: "Медленнее" | УСЛОВИЕ: Корректировщик темпа (интервал). Целевой: 11 минут 30 секунд
+[2026-03-09 19:11:26.130] СПИЧ: "Медленнее" | УСЛОВИЕ: Корректировщик темпа (интервал). Целевой: 11 минут 30 секунд
+[2026-03-09 19:11:51.746] СПИЧ: "Смена через 10 секунд" | УСЛОВИЕ: Осталось 10 секунд до конца текущего сегмента (тип: WORK)
+[2026-03-09 19:12:01.972] СПИЧ: "Быстрее заданного. Нужно 11 30, было 10 30." | УСЛОВИЕ: Фаза работы завершена. Фактический темп: 10 минут 30 секунд, целевой: 11 минут 30 секунд
+[2026-03-09 19:12:03.018] INTERVAL_TICK: segmentIndex=4, segType=REST, elapsedSec=601, inSegSec=1, startElapsedSec=600
+[2026-03-09 19:12:03.023] INTERVAL_ANNOUNCE: segmentIndex=4, segType=REST, targetPace=720, duration=60, distanceKm=null
+[2026-03-09 19:12:03.025] СПИЧ: "Отдых. 1 минута. Темп 12 минут." | УСЛОВИЕ: Начало нового сегмента (тип: REST, длительность: 60 сек)
+[2026-03-09 19:12:51.974] СПИЧ: "Смена через 10 секунд" | УСЛОВИЕ: Осталось 10 секунд до конца текущего сегмента (тип: REST)
+[2026-03-09 19:13:02.139] INTERVAL_TICK: segmentIndex=5, segType=COOLDOWN, elapsedSec=661, inSegSec=1, startElapsedSec=660
+[2026-03-09 19:13:02.142] INTERVAL_ANNOUNCE: segmentIndex=5, segType=COOLDOWN, targetPace=660, duration=60, distanceKm=null
+[2026-03-09 19:13:02.143] СПИЧ: "Заминка. 1 минута. Темп 11 минут." | УСЛОВИЕ: Начало нового сегмента (тип: COOLDOWN, длительность: 60 сек)
+[2026-03-09 19:13:51.982] СПИЧ: "Смена через 10 секунд" | УСЛОВИЕ: Осталось 10 секунд до конца текущего сегмента (тип: COOLDOWN)
+[2026-03-09 19:14:01.168] СПИЧ: "Тренировка завершена" | УСЛОВИЕ: Завершены все сегменты интервальной тренировки
+[2026-03-09 19:14:01.665] ACTIVITY_ON_START: registering receivers
+[2026-03-09 19:14:01.686] SCREEN: MainActivity resumed, goalValue=Интервалы, goalSupporting=≈12:00 • 2 сер., mode=1
+[2026-03-09 19:14:12.136] USER_ACTION: Long press - stopping and resetting workout
+[2026-03-09 19:14:12.140] WORKOUT_FINISH_REQUESTED
+[2026-03-09 19:14:12.152] SERVICE: handleStopAndReset called - building final snapshot BEFORE reset
+[2026-03-09 19:14:12.153] SERVICE: Building final snapshot...
+[2026-03-09 19:14:12.155] SNAPSHOT: dist=1.0909959, elapsed=720115, mode=interval
+[2026-03-09 19:14:12.157] WORKOUT_SNAPSHOT_CREATED: distance=1.0909959km, elapsed=720115ms
+[2026-03-09 19:14:12.160] SERVICE: Pending snapshot saved to storage
+[2026-03-09 19:14:12.160] SERVICE: Saving workout history from snapshot
+[2026-03-09 19:14:12.171] SERVICE_HISTORY_SAVED: {"avgPaceRestSec":623,"avgPaceTotalSec":659,"avgPaceWithoutWarmupSec":655,"avgPaceWorkSec":663,"date":"09.03.26","distance":1.0909959,"elapsedMs":720115,"goalLabel":"2×04:00 / 01:00","normalGoalMode":0,"segmentDetails":[{"actualPaceSecPerKm":700,"distanceKm":0.34248534,"durationSec":240,"targetPaceSecPerKm":690,"title":"Участок 1","type":"WORK"},{"actualPaceSecPerKm":629,"distanceKm":0.38109547,"durationSec":240,"targetPaceSecPerKm":690,"title":"Участок 2","type":"WORK"}],"speed":5.454108,"time":"00:12:00","workoutMode":"interval"}
+[2026-03-09 19:14:12.172] SERVICE_HISTORY_SAVED: workout saved by Service directly
+[2026-03-09 19:14:12.176] SERVICE: Final snapshot broadcast sent
+[2026-03-09 19:14:12.185] FINAL_SNAPSHOT_RECEIVER: snapshot broadcast received
+[2026-03-09 19:14:12.189] SNAPSHOT_RECEIVED: distance=1.0909959km, elapsed=720115ms
+[2026-03-09 19:14:12.190] ACTIVITY: Valid snapshot received, Service already saved history
+[2026-03-09 19:14:12.191] ACTIVITY: sending SAVE_ACK to Service
+[2026-03-09 19:14:12.193] ACTIVITY: ACK sent to Service
+[2026-03-09 19:14:12.194] ACTIVITY: resetUIAfterWorkout begin
+[2026-03-09 19:14:12.194] UI_RESET_BEGIN
+[2026-03-09 19:14:12.195] UI_RESET_DONE
+[2026-03-09 19:14:12.195] ACTIVITY: resetUIAfterWorkout end
+[2026-03-09 19:14:12.204] SERVICE: Received SAVE_ACK from Activity
+[2026-03-09 19:14:12.205] SERVICE: Performing full reset
+[2026-03-09 19:14:12.207] SERVICE: Pending snapshot cleared
+[2026-03-09 19:14:12.208] WORKOUT_RESET_DONE
+[2026-03-09 19:14:14.513] === App started ===
+[2026-03-09 19:14:14.628] ACTIVITY_ON_START: registering receivers
+[2026-03-09 19:14:14.643] GPS_STATUS: Started pre-start location updates
+[2026-03-09 19:14:14.652] SCREEN: MainActivity resumed, goalValue=Интервалы, goalSupporting=≈12:00 • 2 сер., mode=1
+[2026-03-09 19:14:16.300] USER_ACTION: History icon pressed
+[2026-03-09 19:14:16.329] GPS_STATUS: Stopped pre-start location updates
+[2026-03-09 19:14:16.802] ACTIVITY_ON_STOP: begin unregister receivers
+[2026-03-09 19:14:16.804] ACTIVITY_ON_STOP: workoutUpdateReceiver unregistered
+[2026-03-09 19:14:16.805] ACTIVITY_ON_STOP: finalSnapshotReceiver unregistered
+[2026-03-09 19:14:16.806] ACTIVITY_ON_STOP: end
+[2026-03-09 19:14:56.464] ACTIVITY_ON_START: registering receivers
+[2026-03-09 19:14:56.473] GPS_STATUS: Started pre-start location updates
+[2026-03-09 19:14:56.478] SCREEN: MainActivity resumed, goalValue=Интервалы, goalSupporting=≈12:00 • 2 сер., mode=1
+[2026-03-09 19:14:57.514] GPS_STATUS: Stopped pre-start location updates
+[2026-03-09 19:14:57.904] ACTIVITY_ON_STOP: begin unregister receivers
+[2026-03-09 19:14:57.908] ACTIVITY_ON_STOP: workoutUpdateReceiver unregistered
+[2026-03-09 19:14:57.911] ACTIVITY_ON_STOP: finalSnapshotReceiver unregistered
+[2026-03-09 19:14:57.914] ACTIVITY_ON_STOP: end
+[2026-03-09 19:17:57.762] ACTIVITY_ON_START: registering receivers
+[2026-03-09 19:17:57.786] GPS_STATUS: Started pre-start location updates
+[2026-03-09 19:17:57.792] SCREEN: MainActivity resumed, goalValue=Интервалы, goalSupporting=≈12:00 • 2 сер., mode=1
+[2026-03-09 19:17:59.204] USER_ACTION: Goal tile pressed
+[2026-03-09 19:17:59.232] GPS_STATUS: Stopped pre-start location updates
+[2026-03-09 19:17:59.760] ACTIVITY_ON_STOP: begin unregister receivers
+[2026-03-09 19:17:59.762] ACTIVITY_ON_STOP: workoutUpdateReceiver unregistered
+[2026-03-09 19:17:59.763] ACTIVITY_ON_STOP: finalSnapshotReceiver unregistered
+[2026-03-09 19:17:59.765] ACTIVITY_ON_STOP: end
+[2026-03-09 19:18:19.102] ACTIVITY_ON_START: registering receivers
+[2026-03-09 19:18:19.111] GPS_STATUS: Started pre-start location updates
+[2026-03-09 19:18:19.115] SCREEN: MainActivity resumed, goalValue=1,00 км, goalSupporting=11:30, mode=0
+[2026-03-09 19:18:31.271] GPS_STATUS: Stopped pre-start location updates
+[2026-03-09 19:18:31.636] ACTIVITY_ON_STOP: begin unregister receivers
+[2026-03-09 19:18:31.638] ACTIVITY_ON_STOP: workoutUpdateReceiver unregistered
+[2026-03-09 19:18:31.643] ACTIVITY_ON_STOP: finalSnapshotReceiver unregistered
+[2026-03-09 19:18:31.646] ACTIVITY_ON_STOP: end
+[2026-03-09 19:42:07.013] === App started ===
+[2026-03-09 19:42:07.113] ACTIVITY_ON_START: registering receivers
+[2026-03-09 19:42:07.128] GPS_STATUS: Started pre-start location updates
+[2026-03-09 19:42:07.132] SCREEN: MainActivity resumed, goalValue=1,00 км, goalSupporting=11:30, mode=0
+[2026-03-09 19:42:08.623] USER_ACTION: Start pressed - starting workout
+[2026-03-09 19:42:08.624] GPS_STATUS: Stopped pre-start location updates
+[2026-03-09 19:42:08.631] === Workout started ===
+[2026-03-09 19:42:08.632] Start time: 2026-03-09 19:42:08
+[2026-03-09 19:42:08.660] SERVICE_START: before start branch isRunning=false, isPaused=false, startTimeMs=0, elapsed=0
+[2026-03-09 19:42:08.666] SCENARIO_LOAD: mode=0, scenarioSegments=0
+[2026-03-09 19:42:08.667] SCENARIO_RESET: segmentIndex=0, lastAnnouncedSegmentIndex=-1, segmentStartElapsedSec=0, segmentStartDistanceM=0.0
+[2026-03-09 19:42:08.668] SERVICE_START: after init mode=0, startTimeMs=1773078128663, segmentIndex=0, lastAnnouncedSegmentIndex=-1
+[2026-03-09 19:42:08.772] TICK: first active tick mode=0, distance=0.0, elapsed=108, segmentIndex=0
+[2026-03-09 19:42:11.760] ACTIVITY_ON_STOP: begin unregister receivers
+[2026-03-09 19:42:11.762] ACTIVITY_ON_STOP: workoutUpdateReceiver unregistered
+[2026-03-09 19:42:11.764] ACTIVITY_ON_STOP: finalSnapshotReceiver unregistered
+[2026-03-09 19:42:11.765] ACTIVITY_ON_STOP: end
+[2026-03-09 19:43:30.327] ACTIVITY_ON_START: registering receivers
+[2026-03-09 19:43:30.342] SCREEN: MainActivity resumed, goalValue=1,00 км, goalSupporting=11:30, mode=0
+[2026-03-09 19:43:36.044] ACTIVITY_ON_STOP: begin unregister receivers
+[2026-03-09 19:43:36.052] ACTIVITY_ON_STOP: workoutUpdateReceiver unregistered
+[2026-03-09 19:43:36.064] ACTIVITY_ON_STOP: finalSnapshotReceiver unregistered
+[2026-03-09 19:43:36.067] ACTIVITY_ON_STOP: end
+[2026-03-09 19:43:36.108] СПИЧ: "Быстрее" | УСЛОВИЕ: Корректировщик темпа (обычный). Целевой: 11 минут 20 секунд
+[2026-03-09 19:44:12.007] СПИЧ: "Быстрее" | УСЛОВИЕ: Корректировщик темпа (обычный). Целевой: 11 минут 17 секунд
+[2026-03-09 19:44:55.219] СПИЧ: "Быстрее" | УСЛОВИЕ: Корректировщик темпа (обычный). Целевой: 11 минут 13 секунд
+[2026-03-09 19:45:31.199] СПИЧ: "Быстрее" | УСЛОВИЕ: Корректировщик темпа (обычный). Целевой: 11 минут 8 секунд
+[2026-03-09 19:45:38.588] ACTIVITY_ON_START: registering receivers
+[2026-03-09 19:45:38.622] SCREEN: MainActivity resumed, goalValue=1,00 км, goalSupporting=11:30, mode=0
+[2026-03-09 19:45:42.267] ACTIVITY_ON_STOP: begin unregister receivers
+[2026-03-09 19:45:42.270] ACTIVITY_ON_STOP: workoutUpdateReceiver unregistered
+[2026-03-09 19:45:42.273] ACTIVITY_ON_STOP: finalSnapshotReceiver unregistered
+[2026-03-09 19:45:42.276] ACTIVITY_ON_STOP: end
+[2026-03-09 19:46:07.019] СПИЧ: "Быстрее" | УСЛОВИЕ: Корректировщик темпа (обычный). Целевой: 11 минут 3 секунды
+[2026-03-09 19:46:42.895] СПИЧ: "Быстрее" | УСЛОВИЕ: Корректировщик темпа (обычный). Целевой: 10 минут 58 секунд
+[2026-03-09 19:47:18.772] СПИЧ: "Быстрее" | УСЛОВИЕ: Корректировщик темпа (обычный). Целевой: 10 минут 52 секунды
+[2026-03-09 19:47:25.468] СПИЧ: "Дистанция 0 и 4 километра. Отстаём на 51 секунду, отставание растёт. Нужен темп 10 52. Значительно ускорьтесь." | УСЛОВИЕ: Плановый чекпоинт обычного режима. Пройдено: 0,43 км, темп сегмента: 12 минут 21 секунда, глобальный статус: BEHIND, финишное отклонение: 51 сек
+[2026-03-09 19:48:33.667] СПИЧ: "Дистанция 0 и 5 километра. Отстаём на 41 секунду, отставание растёт. Нужен темп 10 44. Значительно ускорьтесь." | УСЛОВИЕ: Плановый чекпоинт обычного режима. Пройдено: 0,53 км, темп сегмента: 11 минут 27 секунд, глобальный статус: BEHIND, финишное отклонение: 41 сек
+[2026-03-09 19:49:48.179] СПИЧ: "Дистанция 0 и 6 километра. Отстаём на 42 секунды, отставание растёт. Нужен темп 10 19. Значительно ускорьтесь." | УСЛОВИЕ: Плановый чекпоинт обычного режима. Пройдено: 0,63 км, темп сегмента: 12 минут 18 секунд, глобальный статус: BEHIND, финишное отклонение: 42 сек
+[2026-03-09 19:50:35.043] СПИЧ: "Дистанция 0 и 7 километра. По графику. Сейчас темп 7 42, нужен 11 18. Немного замедлитесь." | УСЛОВИЕ: Плановый чекпоинт обычного режима. Пройдено: 0,73 км, темп сегмента: 7 минут 42 секунды, глобальный статус: ON_TRACK, финишное отклонение: 5 сек
+[2026-03-09 19:51:36.916] СПИЧ: "Дистанция 0 и 8 километра. По графику. Сейчас темп 10 16, нужен 11 54. Немного замедлитесь." | УСЛОВИЕ: Плановый чекпоинт обычного режима. Пройдено: 0,83 км, темп сегмента: 10 минут 16 секунд, глобальный статус: ON_TRACK, финишное отклонение: -5 сек
+[2026-03-09 19:52:39.233] СПИЧ: "Дистанция 0 и 9 километра. По графику. Сейчас темп 10 15, нужен 11 30. Немного замедлитесь." | УСЛОВИЕ: Плановый чекпоинт обычного режима. Пройдено: 0,93 км, темп сегмента: 10 минут 15 секунд, глобальный статус: ON_TRACK, финишное отклонение: -12 сек
+[2026-03-09 19:53:15.280] СПИЧ: "Быстрее" | УСЛОВИЕ: Корректировщик темпа (обычный). Целевой: 11 минут 30 секунд
+[2026-03-09 19:53:34.397] СПИЧ: "Цель достигнута. Тренировка поставлена на паузу." | УСЛОВИЕ: Дистанция достигла целевой. Текущая: 1,00 км, цель: 1.0 км
+[2026-03-09 19:53:41.598] ACTIVITY_ON_START: registering receivers
+[2026-03-09 19:53:41.621] SCREEN: MainActivity resumed, goalValue=1,00 км, goalSupporting=11:30, mode=0
+[2026-03-09 19:53:43.508] USER_ACTION: Long press - stopping and resetting workout
+[2026-03-09 19:53:43.509] WORKOUT_FINISH_REQUESTED
+[2026-03-09 19:53:43.520] SERVICE: handleStopAndReset called - building final snapshot BEFORE reset
+[2026-03-09 19:53:43.521] SERVICE: Building final snapshot...
+[2026-03-09 19:53:43.524] SNAPSHOT: dist=0.99957025, elapsed=685766, mode=normal
+[2026-03-09 19:53:43.524] WORKOUT_SNAPSHOT_CREATED: distance=0.99957025km, elapsed=685766ms
+[2026-03-09 19:53:43.529] SERVICE: Pending snapshot saved to storage
+[2026-03-09 19:53:43.530] SERVICE: Saving workout history from snapshot
+[2026-03-09 19:53:43.540] SERVICE_HISTORY_SAVED: {"date":"09.03.26","distance":0.99957025,"elapsedMs":685766,"goalLabel":"1,00 км • 11:30/км","normalGoalMode":1,"segmentDetails":[],"speed":5.247348,"targetDistanceKm":1.0,"targetPaceSecPerKm":690,"targetTimeSec":690,"time":"00:11:25","workoutMode":"normal"}
+[2026-03-09 19:53:43.541] SERVICE_HISTORY_SAVED: workout saved by Service directly
+[2026-03-09 19:53:43.544] SERVICE: Final snapshot broadcast sent
+[2026-03-09 19:53:43.553] FINAL_SNAPSHOT_RECEIVER: snapshot broadcast received
+[2026-03-09 19:53:43.556] SNAPSHOT_RECEIVED: distance=0.99957025km, elapsed=685766ms
+[2026-03-09 19:53:43.556] ACTIVITY: Valid snapshot received, Service already saved history
+[2026-03-09 19:53:43.557] ACTIVITY: sending SAVE_ACK to Service
+[2026-03-09 19:53:43.560] ACTIVITY: ACK sent to Service
+[2026-03-09 19:53:43.560] ACTIVITY: resetUIAfterWorkout begin
+[2026-03-09 19:53:43.561] UI_RESET_BEGIN
+[2026-03-09 19:53:43.562] UI_RESET_DONE
+[2026-03-09 19:53:43.562] ACTIVITY: resetUIAfterWorkout end
+[2026-03-09 19:53:43.589] SERVICE: Received SAVE_ACK from Activity
+[2026-03-09 19:53:43.590] SERVICE: Performing full reset
+[2026-03-09 19:53:43.592] SERVICE: Pending snapshot cleared
+[2026-03-09 19:53:43.593] WORKOUT_RESET_DONE
+[2026-03-09 19:53:45.707] === App started ===
+[2026-03-09 19:53:45.802] ACTIVITY_ON_START: registering receivers
+[2026-03-09 19:53:45.817] GPS_STATUS: Started pre-start location updates
+[2026-03-09 19:53:45.820] SCREEN: MainActivity resumed, goalValue=1,00 км, goalSupporting=11:30, mode=0
+[2026-03-09 19:53:48.411] USER_ACTION: History icon pressed
+[2026-03-09 19:53:48.444] GPS_STATUS: Stopped pre-start location updates
+[2026-03-09 19:53:48.883] ACTIVITY_ON_STOP: begin unregister receivers
+[2026-03-09 19:53:48.884] ACTIVITY_ON_STOP: workoutUpdateReceiver unregistered
+[2026-03-09 19:53:48.886] ACTIVITY_ON_STOP: finalSnapshotReceiver unregistered
+[2026-03-09 19:53:48.886] ACTIVITY_ON_STOP: end

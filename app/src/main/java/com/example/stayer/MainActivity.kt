@@ -117,6 +117,9 @@ class MainActivity : AppCompatActivity() {
     private var uiGpsStatus by mutableStateOf(GpsStatus.SEARCHING)
     private var preStartLocationCallback: LocationCallback? = null
 
+    // Heart rate BPM (from service broadcast)
+    private var uiHeartRateBpm by mutableStateOf<Int?>(null)
+
     private fun checkLocationPermission() {
         val permissionsToRequest = mutableListOf(android.Manifest.permission.ACCESS_FINE_LOCATION)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -350,7 +353,8 @@ class MainActivity : AppCompatActivity() {
                         intervalTargetPaceSecPerKm = uiIntervalTargetPaceSecPerKm,
                         workoutMode = uiWorkoutMode,
                         scenarioPreview = uiScenarioPreview,
-                        gpsStatus = uiGpsStatus
+                        gpsStatus = uiGpsStatus,
+                        heartRateBpm = uiHeartRateBpm
                     )
                 }
             }
@@ -727,6 +731,10 @@ class MainActivity : AppCompatActivity() {
                         if (intent.hasExtra("interval_target_pace_sec_per_km"))
                             intent.getIntExtra("interval_target_pace_sec_per_km", 0)
                         else null
+
+                    // Heart rate BPM
+                    val bpmRaw = intent.getIntExtra("EXTRA_CURRENT_BPM", -1)
+                    uiHeartRateBpm = if (bpmRaw > 0) bpmRaw else null
                 }
             }
         }

@@ -64,7 +64,7 @@ class PaceCorrectionManager {
         if (safeDurationSec <= 0.0) return
 
         val safeDistanceM = deltaM.coerceAtLeast(0.0)
-        buffer.addLast(Sample(safeDurationSec, safeDistanceM))
+        buffer.add(Sample(safeDurationSec, safeDistanceM))
         bufferDurationSec += safeDurationSec
         observedDurationSec += safeDurationSec
 
@@ -81,13 +81,13 @@ class PaceCorrectionManager {
             val distM = distanceMeters(lastPoint, nextPoint)
             if (dtSec < MIN_GPS_POINT_INTERVAL_SEC && distM < MIN_GPS_POINT_DISTANCE_M) {
                 gpsWindow.removeLast()
-                gpsWindow.addLast(nextPoint)
+                gpsWindow.add(nextPoint)
                 pruneGpsWindow(safeElapsedSec)
                 return
             }
         }
 
-        gpsWindow.addLast(nextPoint)
+        gpsWindow.add(nextPoint)
         pruneGpsWindow(safeElapsedSec)
     }
 

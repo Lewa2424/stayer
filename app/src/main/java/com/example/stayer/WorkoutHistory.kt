@@ -25,5 +25,6 @@ data class WorkoutHistory(
     val avgPaceRestSec: Int? = null,
     val avgPaceWithoutWarmupSec: Int? = null,
     val avgPaceTotalSec: Int? = null,
+    val avgHeartRate: Int? = null,
     val segmentDetails: List<WorkoutHistorySegment>? = null
 )

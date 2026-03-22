@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -147,6 +148,7 @@ fun MainScreen(
     workoutMode: Int = 0,
     scenarioPreview: String = "",
     gpsStatus: MainActivity.GpsStatus = MainActivity.GpsStatus.SEARCHING,
+    heartRateBpm: Int? = null,
 ) {
     var showInfoSheet by remember { mutableStateOf(false) }
     val infoSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -168,7 +170,7 @@ fun MainScreen(
             sample.elapsedMs > lastSample.elapsedMs ||
             sample.distanceKm > lastSample.distanceKm
         ) {
-            recentPaceSamples.addLast(sample)
+            recentPaceSamples.add(sample)
         }
 
         val cutoffMs = sample.elapsedMs - CURRENT_PACE_WINDOW_MS
@@ -273,6 +275,7 @@ fun GpsStatusBadge(gpsStatus: MainActivity.GpsStatus) {
                 isRunning = isRunning,
                 workoutMode = workoutMode,
                 scenarioPreview = scenarioPreview,
+                heartRateBpm = heartRateBpm,
             )
         }
     ) { inner ->
@@ -449,10 +452,23 @@ fun SetupChecklistScreen(
         } else true
     }
 
-    val requiredOk = locationGranted && systemLocationEnabled && notificationsGranted && notificationsEnabled && pedometerGranted
+    val prefs = context.getSharedPreferences("WorkoutGoalStore", android.content.Context.MODE_PRIVATE)
+    val useHeartRate = remember(refreshTick) { prefs.getBoolean("use_heart_rate", false) }
+    var hrGranted by remember { androidx.compose.runtime.mutableStateOf(true) }
+    
+    androidx.compose.runtime.LaunchedEffect(refreshTick, useHeartRate) {
+        if (useHeartRate) {
+            hrGranted = com.example.stayer.health.HealthConnectManager.hasPermissions(context)
+        }
+    }
+
+    val requiredOk = locationGranted && systemLocationEnabled && notificationsGranted && notificationsEnabled && pedometerGranted && (!useHeartRate || hrGranted)
 
     val requestLocation = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
+    ) { refreshTick++ }
+    val requestHeartRate = rememberLauncherForActivityResult(
+        contract = androidx.health.connect.client.PermissionController.createRequestPermissionResultContract()
     ) { refreshTick++ }
     val requestPedometer = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -555,6 +571,20 @@ fun SetupChecklistScreen(
                     }
                 }
             )
+            if (useHeartRate) {
+                SetupRow(
+                    title = "Пульсометр",
+                    subtitle = "Доступ к Samsung Health / Google Fit",
+                    ok = hrGranted,
+                    required = true,
+                    actionLabel = if (hrGranted) "Ок" else "Разрешить",
+                    onAction = {
+                        if (!hrGranted) {
+                            requestHeartRate.launch(com.example.stayer.health.HealthConnectManager.PERMISSIONS)
+                        }
+                    }
+                )
+            }
             SetupRow(
                 title = "Батарея (рекомендуется)",
                 subtitle = "Отключите оптимизацию батареи для стабильной работы в фоне",
@@ -764,6 +794,7 @@ private fun StatsPanel(
     isRunning: Boolean = false,
     workoutMode: Int = 0,
     scenarioPreview: String = "",
+    heartRateBpm: Int? = null,
 ) {
 
     val shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
@@ -890,6 +921,65 @@ private fun StatsPanel(
                         onClick = onGoalClick,
                         modifier = Modifier.weight(1f)
                     )
+                }
+
+                // Heart rate indicator (only visible when data is available or workout running)
+                if (isRunning && heartRateBpm != null) {
+                    Spacer(Modifier.height(12.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                Color(0xFFE53935).copy(alpha = 0.1f),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Favorite,
+                            contentDescription = null,
+                            tint = Color(0xFFE53935),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "$heartRateBpm BPM",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFE53935)
+                            )
+                        )
+                    }
+                } else if (isRunning) {
+                    Spacer(Modifier.height(12.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                Color(0xFF9E9E9E).copy(alpha = 0.08f),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Favorite,
+                            contentDescription = null,
+                            tint = Color(0xFFBDBDBD),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "— BPM",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFBDBDBD)
+                            )
+                        )
+                    }
                 }
             } else {
                 // ====== Интервальный режим ======

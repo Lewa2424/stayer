@@ -1,6 +1,5 @@
-﻿> Task :app:preBuild UP-TO-DATE
+> Task :app:preBuild UP-TO-DATE
 > Task :app:preDebugBuild UP-TO-DATE
-> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
 > Task :app:checkDebugAarMetadata UP-TO-DATE
 > Task :app:generateDebugResValues UP-TO-DATE
 > Task :app:mapDebugSourceSetPaths UP-TO-DATE
@@ -16,40 +15,21 @@
 > Task :app:processDebugResources UP-TO-DATE
 > Task :app:kaptGenerateStubsDebugKotlin UP-TO-DATE
 > Task :app:kaptDebugKotlin UP-TO-DATE
-> Task :app:javaPreCompileDebug UP-TO-DATE
-> Task :app:mergeDebugShaders UP-TO-DATE
-> Task :app:compileDebugShaders NO-SOURCE
-> Task :app:generateDebugAssets UP-TO-DATE
-> Task :app:mergeDebugAssets UP-TO-DATE
-> Task :app:compressDebugAssets UP-TO-DATE
-> Task :app:checkDebugDuplicateClasses UP-TO-DATE
-> Task :app:desugarDebugFileDependencies UP-TO-DATE
-> Task :app:mergeExtDexDebug UP-TO-DATE
-> Task :app:mergeLibDexDebug UP-TO-DATE
-> Task :app:mergeDebugJniLibFolders UP-TO-DATE
-> Task :app:mergeDebugNativeLibs UP-TO-DATE
-> Task :app:stripDebugDebugSymbols UP-TO-DATE
-> Task :app:validateSigningDebug UP-TO-DATE
-> Task :app:writeDebugAppMetadata UP-TO-DATE
-> Task :app:writeDebugSigningConfigVersions UP-TO-DATE
 
 > Task :app:compileDebugKotlin FAILED
-./gradlew : e: file:///E:/Programming/Kotlin_projects/Stayer/app/src/main/java/com/examp
-le/stayer/ui/main/MainScreen.kt:801:18 Unresolved reference: border
-строка:1 знак:1
-+ ./gradlew assembleDebug 2>&1 | Out-File -Encoding UTF8 build_log.txt; ...
-+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : NotSpecified: (e: file:///E:/P...ference: border:String)  
-   [], RemoteException
-    + FullyQualifiedErrorId : NativeCommandError
- 
-e: file:///E:/Programming/Kotlin_projects/Stayer/app/src/main/java/com/example/stayer/ui
-/main/MainScreen.kt:804:21 Unresolved reference. None of the following candidates is app
-licable because of receiver type mismatch: 
-public suspend fun PointerInputScope.detectTapGestures(onDoubleTap: ((Offset) -> Unit)? 
-= ..., onLongPress: ((Offset) -> Unit)? = ..., onPress: suspend PressGestureScope.(Offse
-t) -> Unit = ..., onTap: ((Offset) -> Unit)? = ...): Unit defined in androidx.compose.fo
-undation.gestures
+e: file:///E:/Programming/Kotlin_projects/Stayer/app/src/main/java/com/example/stayer/watch/WatchDataService.kt:5:12 Unresolved reference: samsung
+e: file:///E:/Programming/Kotlin_projects/Stayer/app/src/main/java/com/example/stayer/watch/WatchDataService.kt:7:44 Unresolved reference: SAAgentV2
+e: file:///E:/Programming/Kotlin_projects/Stayer/app/src/main/java/com/example/stayer/watch/WatchDataService.kt:18:32 Unresolved reference: send
+e: file:///E:/Programming/Kotlin_projects/Stayer/app/src/main/java/com/example/stayer/watch/WatchDataService.kt:27:5 'onFindPeerAgentsResponse' overrides nothing
+e: file:///E:/Programming/Kotlin_projects/Stayer/app/src/main/java/com/example/stayer/watch/WatchDataService.kt:27:60 Unresolved reference: SAPeerAgent
+e: file:///E:/Programming/Kotlin_projects/Stayer/app/src/main/java/com/example/stayer/watch/WatchDataService.kt:31:5 'onServiceConnectionResponse' overrides nothing
+e: file:///E:/Programming/Kotlin_projects/Stayer/app/src/main/java/com/example/stayer/watch/WatchDataService.kt:31:57 Unresolved reference: SAPeerAgent
+e: file:///E:/Programming/Kotlin_projects/Stayer/app/src/main/java/com/example/stayer/watch/WatchDataService.kt:31:79 Unresolved reference: SASocket
+e: file:///E:/Programming/Kotlin_projects/Stayer/app/src/main/java/com/example/stayer/watch/WatchDataService.kt:32:23 Unresolved reference: CONNECTION_SUCCESS
+e: file:///E:/Programming/Kotlin_projects/Stayer/app/src/main/java/com/example/stayer/watch/WatchDataService.kt:41:29 Unresolved reference: SASocket
+e: file:///E:/Programming/Kotlin_projects/Stayer/app/src/main/java/com/example/stayer/watch/WatchDataService.kt:42:5 'onReceive' overrides nothing
+e: file:///E:/Programming/Kotlin_projects/Stayer/app/src/main/java/com/example/stayer/watch/WatchDataService.kt:46:5 'onError' overrides nothing
+e: file:///E:/Programming/Kotlin_projects/Stayer/app/src/main/java/com/example/stayer/watch/WatchDataService.kt:50:5 'onServiceConnectionLost' overrides nothing
 
 [Incubating] Problems report is available at: file:///E:/Programming/Kotlin_projects/Stayer/build/reports/problems/problems-report.html
 
@@ -57,8 +37,7 @@ FAILURE: Build failed with an exception.
 
 * What went wrong:
 Execution failed for task ':app:compileDebugKotlin'.
-> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerR
-unnerWithWorkers$GradleKotlinCompilerWorkAction
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
    > Compilation error. See log for more details
 
 * Try:
@@ -73,5 +52,5 @@ You can use '--warning-mode all' to show the individual deprecation warnings and
 
 For more on this, please refer to https://docs.gradle.org/8.13/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
 
-BUILD FAILED in 11s
-30 actionable tasks: 1 executed, 29 up-to-date
+BUILD FAILED in 22s
+16 actionable tasks: 1 executed, 15 up-to-date
