@@ -117,9 +117,6 @@ class MainActivity : AppCompatActivity() {
     private var uiGpsStatus by mutableStateOf(GpsStatus.SEARCHING)
     private var preStartLocationCallback: LocationCallback? = null
 
-    // Heart rate BPM (from service broadcast)
-    private var uiHeartRateBpm by mutableStateOf<Int?>(null)
-
     private fun checkLocationPermission() {
         val permissionsToRequest = mutableListOf(android.Manifest.permission.ACCESS_FINE_LOCATION)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -344,7 +341,6 @@ class MainActivity : AppCompatActivity() {
                         },
                         onPrimaryClick = { handlePrimaryAction() },
                         onStopAndReset = { stopAndResetWorkout() },
-                        onOpenSetup = { showSetup = true },
                         intervalActive = uiIntervalActive,
                         intervalType = uiIntervalType,
                         intervalRemainingSec = uiIntervalRemainingSec,
@@ -353,8 +349,7 @@ class MainActivity : AppCompatActivity() {
                         intervalTargetPaceSecPerKm = uiIntervalTargetPaceSecPerKm,
                         workoutMode = uiWorkoutMode,
                         scenarioPreview = uiScenarioPreview,
-                        gpsStatus = uiGpsStatus,
-                        heartRateBpm = uiHeartRateBpm
+                        gpsStatus = uiGpsStatus
                     )
                 }
             }
@@ -542,12 +537,12 @@ class MainActivity : AppCompatActivity() {
         }
         val sharedPreferences: SharedPreferences = getSharedPreferences("Goals", MODE_PRIVATE)
         val goal = WorkoutGoalStore.load(sharedPreferences)
-        refreshGoalUi(goal)
         val mode = goal.workoutMode
         uiWorkoutMode = mode
         uiScenarioPreview = WorkoutGoalText.buildScenarioPreview(goal)
         writeLog("SCREEN: MainActivity resumed, goalValue=$uiGoalValue, goalSupporting=$uiGoalSupporting, mode=$mode")
     }
+
 
     private fun buildIntervalPreview(prefs: SharedPreferences): String {
         val json = prefs.getString("INTERVAL_SCENARIO_JSON", null) ?: return ""
@@ -732,9 +727,6 @@ class MainActivity : AppCompatActivity() {
                             intent.getIntExtra("interval_target_pace_sec_per_km", 0)
                         else null
 
-                    // Heart rate BPM
-                    val bpmRaw = intent.getIntExtra("EXTRA_CURRENT_BPM", -1)
-                    uiHeartRateBpm = if (bpmRaw > 0) bpmRaw else null
                 }
             }
         }
@@ -811,7 +803,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onStop() {
-        super.onStop()
         writeLog("ACTIVITY_ON_STOP: begin unregister receivers")
         workoutUpdateReceiver?.let {
             try {
@@ -863,7 +854,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        writeLog("ACTIVITY_ON_DESTROY: begin")
         super.onDestroy()
         writeLog("ACTIVITY_ON_DESTROY: after super")
         writeLog("ACTIVITY_ON_DESTROY: shutting down MainActivity TTS")

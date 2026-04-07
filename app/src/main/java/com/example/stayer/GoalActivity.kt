@@ -1,28 +1,20 @@
 package com.example.stayer
 
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
-import kotlinx.coroutines.launch
 import android.view.View
 import android.widget.AdapterView
 import android.widget.Button
 import android.widget.EditText
 import android.widget.RadioGroup
 import android.widget.Spinner
-import android.widget.Switch
 import android.widget.TextView
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import android.widget.Toast
 import android.content.SharedPreferences
-import androidx.activity.result.ActivityResultLauncher
 import androidx.core.content.edit
-import androidx.health.connect.client.HealthConnectClient
-import androidx.health.connect.client.PermissionController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.example.stayer.health.HealthConnectManager
 import com.google.gson.Gson
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.layout.*
@@ -56,9 +48,6 @@ class GoalActivity : AppCompatActivity() {
     private lateinit var confirmTimeButton: Button
     private lateinit var backButton: Button
 
-    private lateinit var hrSwitch: Switch
-    private lateinit var hrPermissionLauncher: ActivityResultLauncher<Set<String>>
-
     companion object {
         private const val PREFS_GOALS = "Goals"
         
@@ -78,8 +67,6 @@ class GoalActivity : AppCompatActivity() {
         // Location type: 0=stadium (smoothing ON), 1=park (smoothing OFF)
         const val LOCATION_TYPE = "LOCATION_TYPE"
 
-        // Heart rate monitor toggle (standalone, not inside ActiveWorkoutGoal JSON)
-        const val USE_HEART_RATE = "USE_HEART_RATE"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -350,68 +337,6 @@ class GoalActivity : AppCompatActivity() {
         rgLocationType.setOnCheckedChangeListener { _, checkedId ->
             val locType = if (checkedId == R.id.rbPark) 1 else 0
             prefs.edit().putInt(LOCATION_TYPE, locType).apply()
-        }
-
-        // === Heart Rate Switch ===
-        hrSwitch = findViewById(R.id.switchHeartRate)
-        val savedUseHr = prefs.getBoolean(USE_HEART_RATE, false)
-        hrSwitch.isChecked = savedUseHr
-
-        hrPermissionLauncher = registerForActivityResult(
-            PermissionController.createRequestPermissionResultContract()
-        ) { granted ->
-            if (granted.containsAll(HealthConnectManager.PERMISSIONS)) {
-                hrSwitch.isChecked = true
-                prefs.edit().putBoolean(USE_HEART_RATE, true).apply()
-            } else {
-                hrSwitch.isChecked = false
-                Toast.makeText(this, "Права на чтение пульса не выданы", Toast.LENGTH_SHORT).show()
-            }
-        }
-
-        hrSwitch.setOnCheckedChangeListener { _, isChecked ->
-            if (!isChecked) {
-                prefs.edit().putBoolean(USE_HEART_RATE, false).apply()
-                return@setOnCheckedChangeListener
-            }
-            // User is trying to enable HR — check SDK status
-            when (HealthConnectManager.getSdkStatus(this)) {
-                HealthConnectClient.SDK_UNAVAILABLE -> {
-                    hrSwitch.isChecked = false
-                    Toast.makeText(this,
-                        "Ваше устройство не поддерживает работу с пульсометром через Health Connect",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
-                HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED -> {
-                    hrSwitch.isChecked = false
-                    AlertDialog.Builder(this)
-                        .setTitle("Требуется Health Connect")
-                        .setMessage("Для работы пульсометра установите приложение Health Connect")
-                        .setPositiveButton("Установить") { _, _ ->
-                            try {
-                                startActivity(Intent(Intent.ACTION_VIEW,
-                                    Uri.parse("market://details?id=com.google.android.apps.healthdata")))
-                            } catch (_: Exception) {
-                                startActivity(Intent(Intent.ACTION_VIEW,
-                                    Uri.parse("https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata")))
-                            }
-                        }
-                        .setNegativeButton("Отмена", null)
-                        .show()
-                }
-                HealthConnectClient.SDK_AVAILABLE -> {
-                    // Check if permission already granted
-                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
-                        if (HealthConnectManager.hasPermissions(this@GoalActivity)) {
-                            prefs.edit().putBoolean(USE_HEART_RATE, true).apply()
-                        } else {
-                            hrSwitch.isChecked = false // will be set back to true in callback
-                            hrPermissionLauncher.launch(HealthConnectManager.PERMISSIONS)
-                        }
-                    }
-                }
-            }
         }
 
         // Обработчик нажатия на кнопку "Назад"

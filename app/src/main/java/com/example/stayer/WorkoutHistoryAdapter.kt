@@ -175,9 +175,6 @@ class WorkoutHistoryAdapter(
             addSummaryLine("Фактическое время: ${workout.time}")
             addSummaryLine("Средний темп: ${formatPace(workout.elapsedMs, workout.distance)}")
             
-            workout.avgHeartRate?.let {
-                addSummaryLine("Средний пульс: $it BPM")
-            }
 
             buildNormalDeviation(workout)?.let {
                 addSummaryLine("Отклонение от цели: $it")
@@ -189,9 +186,6 @@ class WorkoutHistoryAdapter(
             addSummaryLine("Общее время: ${workout.time}")
             buildSharedTargetPaceLine(workout)?.let { addSummaryLine(it) }
             
-            workout.avgHeartRate?.let {
-                addSummaryLine("Средний пульс: $it BPM")
-            }
             
             bindSegments(workout)
         }
@@ -200,9 +194,6 @@ class WorkoutHistoryAdapter(
             addSummaryLine("Общая дистанция: ${formatDistance(workout.distance)}")
             addSummaryLine("Общее время: ${workout.time}")
             
-            workout.avgHeartRate?.let {
-                addSummaryLine("Средний пульс: $it BPM")
-            }
             
             bindSegments(workout)
         }

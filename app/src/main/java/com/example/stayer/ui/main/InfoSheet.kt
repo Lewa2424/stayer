@@ -12,7 +12,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -22,8 +21,7 @@ import com.example.stayer.R
 
 @Composable
 fun InfoBottomSheetContent(
-    onDismiss: () -> Unit,
-    onOpenSetup: () -> Unit
+    onDismiss: () -> Unit
 ) {
     val scrollState = rememberScrollState()
 
@@ -249,13 +247,6 @@ fun InfoBottomSheetContent(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(stringResource(R.string.info_close))
-        }
-        Spacer(Modifier.height(8.dp))
-        TextButton(
-            onClick = onOpenSetup,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(stringResource(R.string.setup_check_button))
         }
     }
 }

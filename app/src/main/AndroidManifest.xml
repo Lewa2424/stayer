@@ -15,13 +15,6 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
-    <!-- Health Connect -->
-    <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
-
-    <queries>
-        <package android:name="com.google.android.apps.healthdata" />
-    </queries>
-
     <application
         android:name=".MyApp"
         android:allowBackup="true"
@@ -47,11 +40,7 @@
 
         <activity android:name=".GoalActivity"
             android:windowSoftInputMode="adjustResize"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
-            </intent-filter>
-        </activity>
+            android:exported="false" />
         <activity android:name=".DisplayGoalsActivity" />
         <activity android:name=".HistoryActivity" />
         <activity android:name=".SettingsActivity" />
