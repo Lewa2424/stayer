@@ -180,6 +180,7 @@ class WorkoutForegroundService : Service() {
     private var segmentStartDistanceM = 0.0
     private var activeWorkoutModeInt = 0
     private val completedHistorySegments = mutableListOf<WorkoutHistorySegment>()
+    private val completedNormalCheckpoints = mutableListOf<WorkoutHistoryCheckpoint>()
     private var nextHistorySegmentNumber = 1
 
     // Normal mode Pacer state
@@ -447,6 +448,7 @@ class WorkoutForegroundService : Service() {
         pacerPraiseAlternate = false
         activeWorkoutModeInt = 0
         completedHistorySegments.clear()
+        completedNormalCheckpoints.clear()
         nextHistorySegmentNumber = 1
 
         resetTrackState()
@@ -923,9 +925,11 @@ class WorkoutForegroundService : Service() {
 
         val currentDistM = currentDistanceKm * 1000.0
         val currentElapsedSec = (currentElapsedMs() / 1000).toInt()
+        val previousCheckpointDistanceM = lastPacerCheckpointDistanceM
+        val previousCheckpointElapsedSec = lastPacerCheckpointElapsedSec
 
-        val deltaDistM = currentDistM - lastPacerCheckpointDistanceM
-        val deltaTimeSec = currentElapsedSec - lastPacerCheckpointElapsedSec
+        val deltaDistM = currentDistM - previousCheckpointDistanceM
+        val deltaTimeSec = currentElapsedSec - previousCheckpointElapsedSec
 
         // Update checkpoints for NEXT time
         lastPacerCheckpointDistanceM = currentDistM
@@ -969,6 +973,15 @@ class WorkoutForegroundService : Service() {
         // Update emergency monitor context
         lastCheckpointProgress = globalProgress
         emergencyCooldownUntilDistKm = 0.0
+
+        val targetSegmentSec = (targetPaceSecPerKm * (deltaDistM / 1000.0)).roundToInt()
+        completedNormalCheckpoints += WorkoutHistoryCheckpoint(
+            fromKm = (previousCheckpointDistanceM / 1000.0).toFloat(),
+            toKm = currentDistanceKm,
+            durationSec = deltaTimeSec,
+            paceSecPerKm = currentPaceSecPerKm.toInt(),
+            deltaSec = targetSegmentSec - deltaTimeSec
+        )
 
         val checkpointCondition =
             "Плановый чекпоинт обычного режима. Пройдено: ${String.format(Locale.getDefault(), "%.2f", currentDistanceKm)} км, " +
@@ -1031,6 +1044,7 @@ class WorkoutForegroundService : Service() {
         accumCooldownDistM = 0.0; accumCooldownTimeSec = 0
         segmentStartDistanceM = getTotalDistanceMeters()
         completedHistorySegments.clear()
+        completedNormalCheckpoints.clear()
         nextHistorySegmentNumber = 1
 
         // Reset Pacer state
@@ -1285,6 +1299,14 @@ class WorkoutForegroundService : Service() {
             targetPaceSecPerKm = seg.targetPaceSecPerKm?.takeIf { it > 0 }
         )
         return result
+    }
+
+    /**
+     * Собирает успешно озвученные чекпоинты обычного режима для истории.
+     * Builds successfully spoken normal-mode checkpoints for workout history.
+     */
+    private fun buildSnapshotCheckpointDetails(): List<WorkoutHistoryCheckpoint> {
+        return completedNormalCheckpoints.toList()
     }
 
     private fun paceOrNull(distM: Double, timeSec: Int): Int? {
@@ -1735,7 +1757,8 @@ class WorkoutForegroundService : Service() {
             avgPaceRestSec = avgRest,
             avgPaceWithoutWarmupSec = avgNoWarmup,
             avgPaceTotalSec = avgTotal,
-            segmentDetails = buildSnapshotSegmentDetails()
+            segmentDetails = buildSnapshotSegmentDetails(),
+            checkpointDetails = buildSnapshotCheckpointDetails()
         )
     }
 

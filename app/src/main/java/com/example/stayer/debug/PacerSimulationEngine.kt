@@ -1,5 +1,6 @@
 package com.example.stayer.debug
 
+import com.example.stayer.WorkoutHistoryCheckpoint
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,6 +27,7 @@ class PacerSimulationEngine(
     private var lastCheckDistM = 0.0
     private var lastCheckSec = 0
     private var pacerPraiseAlternate = false
+    private val completedCheckpoints = mutableListOf<WorkoutHistoryCheckpoint>()
 
     // Smart Pace Corrector
     private val paceCorrector = com.example.stayer.engine.PaceCorrectionManager()
@@ -68,12 +70,21 @@ class PacerSimulationEngine(
         lastCheckDistM = 0.0
         lastCheckSec = 0
         pacerPraiseAlternate = false
+        completedCheckpoints.clear()
         nextCheckpointKm = calcStep(0.0)
         lastSegmentPace = 0
         lastEmergencyCheckKm = 0.0
         lastCheckpointProgress = GlobalProgress.ON_TRACK
         emergencyCooldownUntilKm = 0.0
         paceCorrector.reset()
+    }
+
+    /**
+     * Возвращает чекпоинты обычной тестовой тренировки для сохранения в историю.
+     * Returns normal test-workout checkpoints for persisting into history.
+     */
+    fun getCheckpointDetails(): List<WorkoutHistoryCheckpoint> {
+        return completedCheckpoints.toList()
     }
 
     private var lastSegmentPace = 0
@@ -204,8 +215,10 @@ class PacerSimulationEngine(
     }
 
     private fun evaluatePace(currentDistM: Double, currentElapsedSec: Int): Pair<String, String>? {
-        val deltaDistM = currentDistM - lastCheckDistM
-        val deltaTimeSec = currentElapsedSec - lastCheckSec
+        val previousCheckDistM = lastCheckDistM
+        val previousCheckSec = lastCheckSec
+        val deltaDistM = currentDistM - previousCheckDistM
+        val deltaTimeSec = currentElapsedSec - previousCheckSec
 
         lastCheckDistM = currentDistM
         lastCheckSec = currentElapsedSec
@@ -217,6 +230,14 @@ class PacerSimulationEngine(
         if (currentPaceSecPerKm < 180 || currentPaceSecPerKm > 1200) return null
 
         val diffSecPerKm = currentPaceSecPerKm - targetPaceSecPerKm.roundToInt()
+        val targetSegmentSec = (targetPaceSecPerKm * (deltaDistM / 1000.0)).roundToInt()
+        completedCheckpoints += WorkoutHistoryCheckpoint(
+            fromKm = (previousCheckDistM / 1000.0).toFloat(),
+            toKm = (currentDistM / 1000.0).toFloat(),
+            durationSec = deltaTimeSec,
+            paceSecPerKm = currentPaceSecPerKm,
+            deltaSec = targetSegmentSec - deltaTimeSec
+        )
 
         // Global prediction
         val currentDistKm = currentDistM / 1000.0

@@ -16,10 +16,15 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import com.example.stayer.ComboScenario
 import com.example.stayer.IntervalScenario
+import com.example.stayer.WorkoutHistory
+import com.example.stayer.WorkoutHistoryCheckpoint
 import com.example.stayer.comboGson
 import com.example.stayer.flatten
 import com.example.stayer.ui.theme.StayerTheme
 import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 class PacerTestActivity : ComponentActivity() {
@@ -92,13 +97,52 @@ class PacerTestActivity : ComponentActivity() {
                     when {
                         mode == 0 && engine != null -> {
                             val targetPaceStr = String.format(Locale.getDefault(), "%d:%02d/км", targetPaceSecPerKm.toInt() / 60, targetPaceSecPerKm.toInt() % 60)
-                            TestEngineScreen(engine!!, targetDistanceKm, targetTimeStr, targetSpeedKmh, targetPaceStr)
+                            TestEngineScreen(
+                                engine = engine!!,
+                                targetDistanceKm = targetDistanceKm,
+                                targetTimeStr = targetTimeStr,
+                                targetSpeed = targetSpeedKmh,
+                                targetPaceStr = targetPaceStr,
+                                onStop = {
+                                    saveNormalTestHistory(
+                                        state = engine!!.state.value,
+                                        targetDistanceKm = targetDistanceKm.toFloat(),
+                                        targetTimeSec = targetTimeSec,
+                                        targetPaceSecPerKm = targetPaceSecPerKm.toInt(),
+                                        checkpointDetails = engine!!.getCheckpointDetails()
+                                    )
+                                    engine?.stop()
+                                }
+                            )
                         }
                         mode == 1 && intervalEngine != null -> {
-                            IntervalTestScreen(intervalEngine!!, intervalScenario!!)
+                            IntervalTestScreen(
+                                engine = intervalEngine!!,
+                                scenario = intervalScenario!!,
+                                onStop = {
+                                    saveSegmentedTestHistory(
+                                        state = intervalEngine!!.state.value,
+                                        workoutMode = "interval",
+                                        goalLabel = buildIntervalGoalLabel(intervalScenario!!),
+                                        targetPaceSecPerKm = intervalScenario!!.segments.firstOrNull { it.type == "WORK" }?.targetPaceSecPerKm
+                                    )
+                                    intervalEngine?.stop()
+                                }
+                            )
                         }
                         mode == 2 && comboEngine != null -> {
-                            ComboTestScreen(comboEngine!!, comboScenario!!)
+                            ComboTestScreen(
+                                engine = comboEngine!!,
+                                combo = comboScenario!!,
+                                onStop = {
+                                    saveSegmentedTestHistory(
+                                        state = comboEngine!!.state.value,
+                                        workoutMode = "combined",
+                                        goalLabel = "Комбо"
+                                    )
+                                    comboEngine?.stop()
+                                }
+                            )
                         }
                         mode == 2 -> {
                             ErrorScreen("Сначала задайте комбинированный сценарий на экране целей.")
@@ -116,6 +160,117 @@ class PacerTestActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * Сохраняет тестовую обычную тренировку в общую историю с меткой "Тест".
+     * Saves a normal simulation workout into the shared history with a "Test" marker.
+     */
+    private fun saveNormalTestHistory(
+        state: SimulationState,
+        targetDistanceKm: Float,
+        targetTimeSec: Int,
+        targetPaceSecPerKm: Int,
+        checkpointDetails: List<WorkoutHistoryCheckpoint>
+    ) {
+        if (state.elapsedSec <= 0) return
+
+        val elapsedMs = state.elapsedSec * 1000L
+        val history = WorkoutHistory(
+            date = SimpleDateFormat("dd.MM.yy", Locale.getDefault()).format(Date()),
+            distance = state.distanceKm.toFloat(),
+            time = formatElapsedTime(state.elapsedSec),
+            speed = state.currentSpeedKmh.toFloat(),
+            elapsedMs = elapsedMs,
+            isTest = true,
+            workoutMode = "normal",
+            targetDistanceKm = targetDistanceKm,
+            targetTimeSec = targetTimeSec,
+            targetPaceSecPerKm = targetPaceSecPerKm,
+            checkpointDetails = checkpointDetails
+        )
+        saveTestWorkoutHistory(history)
+    }
+
+    /**
+     * Сохраняет тестовую интервальную или комбинированную тренировку в общую историю с меткой "Тест".
+     * Saves an interval or combined simulation workout into the shared history with a "Test" marker.
+     */
+    private fun saveSegmentedTestHistory(
+        state: IntervalSimState,
+        workoutMode: String,
+        goalLabel: String,
+        targetPaceSecPerKm: Int? = null
+    ) {
+        if (state.elapsedSec <= 0) return
+
+        val elapsedMs = state.elapsedSec * 1000L
+        val history = WorkoutHistory(
+            date = SimpleDateFormat("dd.MM.yy", Locale.getDefault()).format(Date()),
+            distance = state.distanceKm.toFloat(),
+            time = formatElapsedTime(state.elapsedSec),
+            speed = state.currentSpeedKmh.toFloat(),
+            elapsedMs = elapsedMs,
+            isTest = true,
+            workoutMode = workoutMode,
+            goalLabel = goalLabel,
+            targetPaceSecPerKm = targetPaceSecPerKm
+        )
+        saveTestWorkoutHistory(history)
+    }
+
+    /**
+     * Добавляет тестовую запись в начало общего списка истории.
+     * Adds a test entry to the top of the shared workout history list.
+     */
+    private fun saveTestWorkoutHistory(history: WorkoutHistory) {
+        val prefs = getSharedPreferences("WorkoutHistory", Context.MODE_PRIVATE)
+        val existingJson = prefs.getString("workoutHistoryList", null)
+        val type = object : TypeToken<MutableList<WorkoutHistory>>() {}.type
+        val workoutList: MutableList<WorkoutHistory> = if (existingJson.isNullOrBlank()) {
+            mutableListOf()
+        } else {
+            try {
+                Gson().fromJson(existingJson, type) ?: mutableListOf()
+            } catch (_: Exception) {
+                mutableListOf()
+            }
+        }
+        workoutList.add(0, history)
+        prefs.edit().putString("workoutHistoryList", Gson().toJson(workoutList)).apply()
+    }
+
+    /**
+     * Строит короткий заголовок цели для интервальной тестовой карточки.
+     * Builds a compact goal label for interval test history cards.
+     */
+    private fun buildIntervalGoalLabel(scenario: IntervalScenario): String {
+        val workSegments = scenario.segments.filter { it.type == "WORK" }
+        val firstWork = workSegments.firstOrNull()
+        val firstRest = scenario.segments.firstOrNull { it.type == "REST" }
+        if (firstWork == null || firstRest == null) return "Интервалы"
+        return "${workSegments.size}×${formatMinutesSeconds(firstWork.durationSec)} / ${formatMinutesSeconds(firstRest.durationSec)}"
+    }
+
+    /**
+     * Форматирует длительность в HH:MM:SS для истории тестов.
+     * Formats duration into HH:MM:SS for test workout history.
+     */
+    private fun formatElapsedTime(totalSec: Int): String {
+        val hours = totalSec / 3600
+        val minutes = (totalSec % 3600) / 60
+        val seconds = totalSec % 60
+        return String.format(Locale.getDefault(), "%02d:%02d:%02d", hours, minutes, seconds)
+    }
+
+    /**
+     * Форматирует секунды сегмента в MM:SS для компактной цели интервалов.
+     * Formats segment duration seconds into MM:SS for compact interval goal labels.
+     */
+    private fun formatMinutesSeconds(totalSec: Int): String {
+        val minutes = totalSec / 60
+        val seconds = totalSec % 60
+        return String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
     }
 
     override fun onDestroy() {
@@ -144,7 +299,7 @@ fun ErrorScreen(message: String) {
 }
 
 @Composable
-fun TestEngineScreen(engine: PacerSimulationEngine, targetDistanceKm: Double, targetTimeStr: String, targetSpeed: Double, targetPaceStr: String) {
+fun TestEngineScreen(engine: PacerSimulationEngine, targetDistanceKm: Double, targetTimeStr: String, targetSpeed: Double, targetPaceStr: String, onStop: () -> Unit) {
     val state by engine.state.collectAsState()
     
     var currentSimSpeed by remember { mutableStateOf(engine.simulationSpeedKmh) }
@@ -221,7 +376,7 @@ fun TestEngineScreen(engine: PacerSimulationEngine, targetDistanceKm: Double, ta
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             Button(onClick = { engine.startOrResume() }, modifier = Modifier.weight(1f)) { Text("Старт") }
             Button(onClick = { engine.pause() }, modifier = Modifier.weight(1f)) { Text("Пауза") }
-            Button(onClick = { engine.stop() }, modifier = Modifier.weight(1f)) { Text("Стоп") }
+            Button(onClick = onStop, modifier = Modifier.weight(1f)) { Text("Стоп") }
         }
         
         Spacer(Modifier.height(16.dp))
@@ -236,7 +391,7 @@ fun TestEngineScreen(engine: PacerSimulationEngine, targetDistanceKm: Double, ta
 // ─── Interval Test Screen ─────────────────────────────────────────────────────
 
 @Composable
-fun IntervalTestScreen(engine: IntervalSimulationEngine, scenario: IntervalScenario) {
+fun IntervalTestScreen(engine: IntervalSimulationEngine, scenario: IntervalScenario, onStop: () -> Unit) {
     val state by engine.state.collectAsState()
 
     var currentSimSpeed by remember { mutableStateOf(engine.simulationSpeedKmh) }
@@ -378,7 +533,7 @@ fun IntervalTestScreen(engine: IntervalSimulationEngine, scenario: IntervalScena
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             Button(onClick = { engine.startOrResume() }, modifier = Modifier.weight(1f)) { Text("Старт") }
             Button(onClick = { engine.pause() }, modifier = Modifier.weight(1f)) { Text("Пауза") }
-            Button(onClick = { engine.stop() }, modifier = Modifier.weight(1f)) { Text("Стоп") }
+            Button(onClick = onStop, modifier = Modifier.weight(1f)) { Text("Стоп") }
         }
 
         Spacer(Modifier.height(16.dp))
@@ -401,7 +556,7 @@ fun IntervalTestScreen(engine: IntervalSimulationEngine, scenario: IntervalScena
 
 // ─── Combo Test Screen ────────────────────────────────────────────────────────
 @Composable
-fun ComboTestScreen(engine: ComboSimulationEngine, combo: ComboScenario) {
+fun ComboTestScreen(engine: ComboSimulationEngine, combo: ComboScenario, onStop: () -> Unit) {
     val state by engine.state.collectAsState()
     val segments = remember(combo) { combo.flatten() }
 
@@ -532,7 +687,7 @@ fun ComboTestScreen(engine: ComboSimulationEngine, combo: ComboScenario) {
                     Button(onClick = { engine.pause() }, enabled = state.status == PacerTestStatus.RUNNING) {
                         Text("Пауза")
                     }
-                    Button(onClick = { engine.stop() }) {
+                    Button(onClick = onStop) {
                         Text("Сброс")
                     }
                 }

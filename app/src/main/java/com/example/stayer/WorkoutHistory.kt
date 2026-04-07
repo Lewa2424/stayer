@@ -15,6 +15,7 @@ data class WorkoutHistory(
     val time: String,
     val speed: Float,
     val elapsedMs: Long = 0L,
+    val isTest: Boolean = false,
     val workoutMode: String = "normal",        // "normal" | "interval" | "combined"
     val normalGoalMode: Int? = null,
     val goalLabel: String? = null,
@@ -25,5 +26,6 @@ data class WorkoutHistory(
     val avgPaceRestSec: Int? = null,
     val avgPaceWithoutWarmupSec: Int? = null,
     val avgPaceTotalSec: Int? = null,
-    val segmentDetails: List<WorkoutHistorySegment>? = null
+    val segmentDetails: List<WorkoutHistorySegment>? = null,
+    val checkpointDetails: List<WorkoutHistoryCheckpoint>? = null
 )

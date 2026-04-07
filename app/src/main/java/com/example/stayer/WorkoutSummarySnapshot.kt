@@ -24,6 +24,7 @@ data class WorkoutSummarySnapshot(
     val avgPaceWithoutWarmupSec: Int?,
     val avgPaceTotalSec: Int?,
     val segmentDetails: List<WorkoutHistorySegment>? = null,
+    val checkpointDetails: List<WorkoutHistoryCheckpoint>? = null,
     val timestamp: Long = System.currentTimeMillis()
 ) {
     fun isValid(): Boolean {
@@ -53,7 +54,8 @@ data class WorkoutSummarySnapshot(
             avgPaceRestSec = avgPaceRestSec,
             avgPaceWithoutWarmupSec = avgPaceWithoutWarmupSec,
             avgPaceTotalSec = avgPaceTotalSec,
-            segmentDetails = segmentDetails
+            segmentDetails = segmentDetails,
+            checkpointDetails = checkpointDetails
         )
     }
 }

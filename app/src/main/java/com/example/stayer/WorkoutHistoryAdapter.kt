@@ -11,6 +11,7 @@ import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.appcompat.widget.AppCompatButton
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.edit
 import androidx.recyclerview.widget.RecyclerView
@@ -24,6 +25,8 @@ class WorkoutHistoryAdapter(
 
     private val primaryTextColor = Color.parseColor("#424242")
     private val secondaryTextColor = Color.parseColor("#616161")
+    private val positiveDeltaColor = Color.parseColor("#2E7D32")
+    private val negativeDeltaColor = Color.parseColor("#C62828")
 
     private fun formatDistance(distanceKm: Float): String {
         return String.format(Locale.getDefault(), "%.2f км", distanceKm)
@@ -121,6 +124,7 @@ class WorkoutHistoryAdapter(
         private val segmentsContainer: LinearLayout = itemView.findViewById(R.id.history_segments_container)
 
         var isExpanded = false
+        private var isCheckpointDetailsExpanded = false
 
         fun bindExpandState() {
             if (isExpanded) {
@@ -134,7 +138,8 @@ class WorkoutHistoryAdapter(
 
         fun bind(workout: WorkoutHistory) {
             dateTextView.text = workout.date
-            targetTextView.text = buildHeaderGoalText(workout)
+            targetTextView.text = decorateTestLabel(buildHeaderGoalText(workout), workout.isTest)
+            isCheckpointDetailsExpanded = false
 
             bindDetails(workout)
 
@@ -178,6 +183,11 @@ class WorkoutHistoryAdapter(
 
             buildNormalDeviation(workout)?.let {
                 addSummaryLine("Отклонение от цели: $it")
+            }
+
+            val checkpoints = workout.checkpointDetails.orEmpty()
+            if (checkpoints.isNotEmpty()) {
+                bindCheckpointToggle(checkpoints)
             }
         }
 
@@ -237,10 +247,93 @@ class WorkoutHistoryAdapter(
             }
         }
 
+        private fun decorateTestLabel(baseText: String, isTest: Boolean): String {
+            if (!isTest) return baseText
+            return "Тест • $baseText"
+        }
+
         private fun buildNormalDeviation(workout: WorkoutHistory): String? {
             val targetTime = workout.targetTimeSec ?: return null
             val actualTime = (workout.elapsedMs / 1000L).toInt().takeIf { it > 0 } ?: parseTimeToSec(workout.time)
             return formatSignedClockDelta(actualTime - targetTime)
+        }
+
+        private fun bindCheckpointToggle(checkpoints: List<WorkoutHistoryCheckpoint>) {
+            val toggleButton = makeDetailsButton(if (isCheckpointDetailsExpanded) "Скрыть детали" else "Детали")
+            toggleButton.setOnClickListener {
+                isCheckpointDetailsExpanded = !isCheckpointDetailsExpanded
+                toggleButton.text = if (isCheckpointDetailsExpanded) "Скрыть детали" else "Детали"
+                renderCheckpointDetails(checkpoints)
+            }
+            summaryContainer.addView(toggleButton)
+            renderCheckpointDetails(checkpoints)
+        }
+
+        private fun renderCheckpointDetails(checkpoints: List<WorkoutHistoryCheckpoint>) {
+            segmentsContainer.removeAllViews()
+            if (!isCheckpointDetailsExpanded) {
+                segmentsTitle.visibility = View.GONE
+                segmentsContainer.visibility = View.GONE
+                return
+            }
+
+            segmentsTitle.text = "Детали чекпоинтов"
+            segmentsTitle.visibility = View.VISIBLE
+            segmentsContainer.visibility = View.VISIBLE
+            checkpoints.forEachIndexed { index, checkpoint ->
+                addCheckpointLine(index, checkpoint)
+            }
+        }
+
+        private fun addCheckpointLine(index: Int, checkpoint: WorkoutHistoryCheckpoint) {
+            val container = LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    topMargin = if (index == 0) 0 else dp(10)
+                }
+            }
+
+            container.addView(makeTextView(buildCheckpointRange(checkpoint), secondary = false, topMarginDp = 0))
+            container.addView(makeTextView("Время: ${formatClock(checkpoint.durationSec)}", secondary = false, topMarginDp = 4))
+            container.addView(makeTextView("Темп: ${formatSecPerKm(checkpoint.paceSecPerKm)}", secondary = false, topMarginDp = 4))
+            container.addView(makeDeltaTextView(checkpoint.deltaSec))
+            segmentsContainer.addView(container)
+        }
+
+        private fun buildCheckpointRange(checkpoint: WorkoutHistoryCheckpoint): String {
+            return String.format(
+                Locale.getDefault(),
+                "%.2f-%.2f км",
+                checkpoint.fromKm,
+                checkpoint.toKm
+            )
+        }
+
+        private fun makeDeltaTextView(deltaSec: Int): TextView {
+            val color = when {
+                deltaSec > 0 -> positiveDeltaColor
+                deltaSec < 0 -> negativeDeltaColor
+                else -> secondaryTextColor
+            }
+            return makeTextView("Отклонение: ${formatSignedClockDelta(deltaSec)}", secondary = false, topMarginDp = 4).apply {
+                setTextColor(color)
+            }
+        }
+
+        private fun makeDetailsButton(text: String): AppCompatButton {
+            return AppCompatButton(context).apply {
+                this.text = text
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    topMargin = dp(12)
+                }
+                isAllCaps = false
+            }
         }
 
         private fun buildSegmentLine(workout: WorkoutHistory, segment: WorkoutHistorySegment): String {

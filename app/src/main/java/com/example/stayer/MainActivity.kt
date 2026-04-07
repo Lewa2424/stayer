@@ -821,6 +821,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
         writeLog("ACTIVITY_ON_STOP: end")
+        super.onStop()
     }
 
     /**
