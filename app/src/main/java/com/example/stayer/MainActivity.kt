@@ -33,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
+import com.example.stayer.history.WorkoutHistoryRepository
 import com.example.stayer.ui.main.MainScreen
 import com.example.stayer.ui.main.SetupChecklistScreen
 import com.example.stayer.ui.theme.StayerTheme
@@ -42,7 +43,6 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import java.io.File
 import java.io.FileWriter
 import java.io.IOException
@@ -331,6 +331,10 @@ class MainActivity : AppCompatActivity() {
                             writeLog("USER_ACTION: History icon pressed")
                             startActivity(Intent(this, HistoryActivity::class.java))
                         },
+                        onAnalyticsClick = {
+                            writeLog("USER_ACTION: Analytics icon pressed")
+                            startActivity(Intent(this, AnalyticsActivity::class.java))
+                        },
                         onSettingsClick = {
                             writeLog("USER_ACTION: Settings icon pressed")
                             startActivity(Intent(this, SettingsActivity::class.java))
@@ -491,29 +495,7 @@ class MainActivity : AppCompatActivity() {
 
 
     private fun saveWorkoutHistory(workoutHistory: WorkoutHistory) {
-        // Загружаем существующий список тренировок
-        val sharedPreferences = getSharedPreferences("WorkoutHistory", MODE_PRIVATE)
-        val existingJson = sharedPreferences.getString("workoutHistoryList", null)
-        
-        val workoutList = if (existingJson != null) {
-            try {
-                val type = object : TypeToken<List<WorkoutHistory>>() {}.type
-                Gson().fromJson<List<WorkoutHistory>>(existingJson, type).toMutableList()
-            } catch (e: Exception) {
-                Log.e("WorkoutHistory", "Error loading history: ${e.message}")
-                mutableListOf()
-            }
-        } else {
-            mutableListOf()
-        }
-        
-        // Добавляем новую тренировку в начало списка
-        workoutList.add(0, workoutHistory)
-        
-        // Сохраняем обновленный список
-        sharedPreferences.edit {
-            putString("workoutHistoryList", Gson().toJson(workoutList))
-        }
+        WorkoutHistoryRepository(this).prepend(workoutHistory)
         Log.d("WorkoutHistory", "Saved workout: ${Gson().toJson(workoutHistory)}")
     }
 
@@ -537,6 +519,7 @@ class MainActivity : AppCompatActivity() {
         }
         val sharedPreferences: SharedPreferences = getSharedPreferences("Goals", MODE_PRIVATE)
         val goal = WorkoutGoalStore.load(sharedPreferences)
+        refreshGoalUi(goal)
         val mode = goal.workoutMode
         uiWorkoutMode = mode
         uiScenarioPreview = WorkoutGoalText.buildScenarioPreview(goal)

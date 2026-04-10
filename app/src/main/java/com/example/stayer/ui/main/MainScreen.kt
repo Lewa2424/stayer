@@ -40,6 +40,7 @@ import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.outlined.QueryStats
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.Timer
@@ -132,6 +133,7 @@ fun MainScreen(
     goalValueText: String,
     goalSupportingText: String?,
     onHistoryClick: () -> Unit,
+    onAnalyticsClick: () -> Unit,
     onSettingsClick: () -> Unit,
     onGoalClick: () -> Unit,
     onPrimaryClick: () -> Unit,
@@ -319,6 +321,17 @@ fun GpsStatusBadge(gpsStatus: MainActivity.GpsStatus) {
                     Icon(
                         imageVector = Icons.Outlined.History,
                         contentDescription = stringResource(R.string.history_button_description),
+                        modifier = Modifier.size(24.dp),
+                        tint = softAccentMain
+                    )
+                }
+                IconButton(
+                    onClick = onAnalyticsClick,
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.QueryStats,
+                        contentDescription = "Аналитика",
                         modifier = Modifier.size(24.dp),
                         tint = softAccentMain
                     )

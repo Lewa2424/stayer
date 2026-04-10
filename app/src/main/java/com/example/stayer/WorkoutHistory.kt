@@ -15,6 +15,7 @@ data class WorkoutHistory(
     val time: String,
     val speed: Float,
     val elapsedMs: Long = 0L,
+    val timestamp: Long = 0L,
     val isTest: Boolean = false,
     val workoutMode: String = "normal",        // "normal" | "interval" | "combined"
     val normalGoalMode: Int? = null,

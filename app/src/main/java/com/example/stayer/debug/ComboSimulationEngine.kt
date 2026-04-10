@@ -26,6 +26,8 @@ class ComboSimulationEngine(
     private var segmentStartElapsedSec = 0
     private var segmentStartDistanceM = 0.0
     private var lastAnnouncedSegmentIndex = -1
+    private val completedHistorySegments = mutableListOf<WorkoutHistorySegment>()
+    private var nextHistorySegmentNumber = 1
 
     // Stable phase tracking
     private val workIgnoreSec = 3
@@ -68,10 +70,20 @@ class ComboSimulationEngine(
         _state.value = IntervalSimState(segmentTotal = scenario.segments.size)
         segmentIndex = 0; segmentStartElapsedSec = 0; segmentStartDistanceM = 0.0
         lastAnnouncedSegmentIndex = -1; stableStarted = false
+        completedHistorySegments.clear()
+        nextHistorySegmentNumber = 1
         lastIntervalHintInSegSec = -1; intervalHintAlternate = false
         midHintDone = false; warned10sIndex = -1; endReportIndex = -1
         lastPaceCheckpointN = 0
         promptLog.clear()
+    }
+
+    /**
+     * Возвращает завершённые сохраняемые участки симуляции комбо.
+     * Returns completed persisted segments from combo simulation.
+     */
+    fun getSegmentDetails(): List<WorkoutHistorySegment> {
+        return completedHistorySegments.toList()
     }
 
     private fun addPrompt(text: String) {
@@ -199,6 +211,8 @@ class ComboSimulationEngine(
 
         var lastPrompt = ""
         if (shouldTransition) {
+            recordSegmentForHistory(seg, newDistM - segmentStartDistanceM, inSegSec)
+
             // End report for WORK segments
             if (seg.type == "WORK" && seg.targetPaceSecPerKm != null && endReportIndex != segmentIndex) {
                 endReportIndex = segmentIndex
@@ -252,6 +266,24 @@ class ComboSimulationEngine(
             currentPaceSecPerKm = curPace,
             currentSpeedKmh = simulationSpeedKmh,
             promptLog = promptLog.toList()
+        )
+    }
+
+    /**
+     * Сохраняет завершённый значимый сегмент комбо-симуляции в историю тестов.
+     * Stores completed meaningful combo simulation segment for test history.
+     */
+    private fun recordSegmentForHistory(seg: Segment, segDistM: Double, segTimeSec: Int) {
+        val shouldStore = seg.type == "PACE" || seg.type == "WORK"
+        if (!shouldStore || segDistM <= 0.0 || segTimeSec <= 0) return
+        val actualPace = ((segTimeSec / (segDistM / 1000.0))).toInt()
+        completedHistorySegments += WorkoutHistorySegment(
+            title = "Участок ${nextHistorySegmentNumber++}",
+            type = seg.type,
+            distanceKm = (segDistM / 1000.0).toFloat(),
+            durationSec = segTimeSec,
+            actualPaceSecPerKm = actualPace,
+            targetPaceSecPerKm = seg.targetPaceSecPerKm
         )
     }
 }

@@ -18,11 +18,12 @@ import com.example.stayer.ComboScenario
 import com.example.stayer.IntervalScenario
 import com.example.stayer.WorkoutHistory
 import com.example.stayer.WorkoutHistoryCheckpoint
+import com.example.stayer.WorkoutHistorySegment
 import com.example.stayer.comboGson
+import com.example.stayer.history.WorkoutHistoryRepository
 import com.example.stayer.flatten
 import com.example.stayer.ui.theme.StayerTheme
 import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -124,7 +125,8 @@ class PacerTestActivity : ComponentActivity() {
                                         state = intervalEngine!!.state.value,
                                         workoutMode = "interval",
                                         goalLabel = buildIntervalGoalLabel(intervalScenario!!),
-                                        targetPaceSecPerKm = intervalScenario!!.segments.firstOrNull { it.type == "WORK" }?.targetPaceSecPerKm
+                                        targetPaceSecPerKm = intervalScenario!!.segments.firstOrNull { it.type == "WORK" }?.targetPaceSecPerKm,
+                                        segmentDetails = intervalEngine!!.getSegmentDetails()
                                     )
                                     intervalEngine?.stop()
                                 }
@@ -138,7 +140,8 @@ class PacerTestActivity : ComponentActivity() {
                                     saveSegmentedTestHistory(
                                         state = comboEngine!!.state.value,
                                         workoutMode = "combined",
-                                        goalLabel = "Комбо"
+                                        goalLabel = "Комбо",
+                                        segmentDetails = comboEngine!!.getSegmentDetails()
                                     )
                                     comboEngine?.stop()
                                 }
@@ -176,12 +179,14 @@ class PacerTestActivity : ComponentActivity() {
         if (state.elapsedSec <= 0) return
 
         val elapsedMs = state.elapsedSec * 1000L
+        val timestamp = System.currentTimeMillis()
         val history = WorkoutHistory(
-            date = SimpleDateFormat("dd.MM.yy", Locale.getDefault()).format(Date()),
+            date = SimpleDateFormat("dd.MM.yy", Locale.getDefault()).format(Date(timestamp)),
             distance = state.distanceKm.toFloat(),
             time = formatElapsedTime(state.elapsedSec),
             speed = state.currentSpeedKmh.toFloat(),
             elapsedMs = elapsedMs,
+            timestamp = timestamp,
             isTest = true,
             workoutMode = "normal",
             targetDistanceKm = targetDistanceKm,
@@ -200,21 +205,25 @@ class PacerTestActivity : ComponentActivity() {
         state: IntervalSimState,
         workoutMode: String,
         goalLabel: String,
-        targetPaceSecPerKm: Int? = null
+        targetPaceSecPerKm: Int? = null,
+        segmentDetails: List<WorkoutHistorySegment> = emptyList()
     ) {
         if (state.elapsedSec <= 0) return
 
         val elapsedMs = state.elapsedSec * 1000L
+        val timestamp = System.currentTimeMillis()
         val history = WorkoutHistory(
-            date = SimpleDateFormat("dd.MM.yy", Locale.getDefault()).format(Date()),
+            date = SimpleDateFormat("dd.MM.yy", Locale.getDefault()).format(Date(timestamp)),
             distance = state.distanceKm.toFloat(),
             time = formatElapsedTime(state.elapsedSec),
             speed = state.currentSpeedKmh.toFloat(),
             elapsedMs = elapsedMs,
+            timestamp = timestamp,
             isTest = true,
             workoutMode = workoutMode,
             goalLabel = goalLabel,
-            targetPaceSecPerKm = targetPaceSecPerKm
+            targetPaceSecPerKm = targetPaceSecPerKm,
+            segmentDetails = segmentDetails
         )
         saveTestWorkoutHistory(history)
     }
@@ -224,20 +233,7 @@ class PacerTestActivity : ComponentActivity() {
      * Adds a test entry to the top of the shared workout history list.
      */
     private fun saveTestWorkoutHistory(history: WorkoutHistory) {
-        val prefs = getSharedPreferences("WorkoutHistory", Context.MODE_PRIVATE)
-        val existingJson = prefs.getString("workoutHistoryList", null)
-        val type = object : TypeToken<MutableList<WorkoutHistory>>() {}.type
-        val workoutList: MutableList<WorkoutHistory> = if (existingJson.isNullOrBlank()) {
-            mutableListOf()
-        } else {
-            try {
-                Gson().fromJson(existingJson, type) ?: mutableListOf()
-            } catch (_: Exception) {
-                mutableListOf()
-            }
-        }
-        workoutList.add(0, history)
-        prefs.edit().putString("workoutHistoryList", Gson().toJson(workoutList)).apply()
+        WorkoutHistoryRepository(this).prepend(history)
     }
 
     /**
@@ -311,7 +307,7 @@ fun TestEngineScreen(engine: PacerSimulationEngine, targetDistanceKm: Double, ta
     val scrollState = rememberScrollState()
     Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(scrollState)) {
         Text("Тест пейсера (симуляция)", style = MaterialTheme.typography.titleLarge)
-        Text("Без GPS. Тренировка не сохраняется.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Без GPS. Результат можно сохранить в общую историю как тест.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         
         Spacer(Modifier.height(16.dp))
         
@@ -403,7 +399,7 @@ fun IntervalTestScreen(engine: IntervalSimulationEngine, scenario: IntervalScena
     val scrollState = rememberScrollState()
     Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(scrollState)) {
         Text("Тест интервалов (симуляция)", style = MaterialTheme.typography.titleLarge)
-        Text("Без GPS. Тренировка не сохраняется.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Без GPS. Результат можно сохранить в общую историю как тест.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
         Spacer(Modifier.height(16.dp))
 

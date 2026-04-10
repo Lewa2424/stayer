@@ -33,6 +33,7 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.gson.Gson
 import com.example.stayer.engine.CadenceFallbackEngine
+import com.example.stayer.history.WorkoutHistoryRepository
 import kotlinx.coroutines.*
 import java.io.File
 import java.io.FileWriter
@@ -1918,30 +1919,7 @@ class WorkoutForegroundService : Service() {
             writeLog("SERVICE: Saving workout history from snapshot")
             
             val workoutHistory = snapshot.toWorkoutHistory()
-            
-            // Р—Р°РіСЂСѓР¶Р°РµРј СЃСѓС‰РµСЃС‚РІСѓСЋС‰РёР№ СЃРїРёСЃРѕРє
-            val historyPrefs = getSharedPreferences("WorkoutHistory", MODE_PRIVATE)
-            val existingJson = historyPrefs.getString("workoutHistoryList", null)
-            
-            val workoutList = if (existingJson != null) {
-                try {
-                    val type = object : com.google.gson.reflect.TypeToken<List<WorkoutHistory>>() {}.type
-                    Gson().fromJson<List<WorkoutHistory>>(existingJson, type).toMutableList()
-                } catch (e: Exception) {
-                    writeLog("ERROR loading history: ${e.message}")
-                    mutableListOf()
-                }
-            } else {
-                mutableListOf()
-            }
-            
-            // Р”РѕР±Р°РІР»СЏРµРј РЅРѕРІСѓСЋ С‚СЂРµРЅРёСЂРѕРІРєСѓ РІ РЅР°С‡Р°Р»Рѕ
-            workoutList.add(0, workoutHistory)
-            
-            // РЎРѕС…СЂР°РЅСЏРµРј
-            historyPrefs.edit()
-                .putString("workoutHistoryList", Gson().toJson(workoutList))
-                .apply()
+            WorkoutHistoryRepository(this).prepend(workoutHistory)
             
             writeLog("SERVICE_HISTORY_SAVED: ${Gson().toJson(workoutHistory)}")
             

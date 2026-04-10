@@ -44,6 +44,7 @@ data class WorkoutSummarySnapshot(
             time = timeString,
             speed = speedKmh,
             elapsedMs = elapsedMs,
+            timestamp = timestamp,
             workoutMode = workoutMode,
             normalGoalMode = normalGoalMode,
             goalLabel = goalLabel,

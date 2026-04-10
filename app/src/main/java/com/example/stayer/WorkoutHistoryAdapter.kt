@@ -13,9 +13,8 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.widget.AppCompatButton
 import androidx.constraintlayout.widget.ConstraintLayout
-import androidx.core.content.edit
 import androidx.recyclerview.widget.RecyclerView
-import com.google.gson.Gson
+import com.example.stayer.history.WorkoutHistoryRepository
 import java.util.Locale
 
 class WorkoutHistoryAdapter(
@@ -71,10 +70,7 @@ class WorkoutHistoryAdapter(
     }
 
     private fun saveHistoryList(list: List<WorkoutHistory>) {
-        val sharedPreferences = context.getSharedPreferences("WorkoutHistory", Context.MODE_PRIVATE)
-        sharedPreferences.edit {
-            putString("workoutHistoryList", Gson().toJson(list))
-        }
+        WorkoutHistoryRepository(context).saveAll(list)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): WorkoutViewHolder {
@@ -296,7 +292,7 @@ class WorkoutHistoryAdapter(
                 }
             }
 
-            container.addView(makeTextView(buildCheckpointRange(checkpoint), secondary = false, topMarginDp = 0))
+            container.addView(makeTextView("${index + 1}) ${buildCheckpointRange(checkpoint)}", secondary = false, topMarginDp = 0))
             container.addView(makeTextView("Время: ${formatClock(checkpoint.durationSec)}", secondary = false, topMarginDp = 4))
             container.addView(makeTextView("Темп: ${formatSecPerKm(checkpoint.paceSecPerKm)}", secondary = false, topMarginDp = 4))
             container.addView(makeDeltaTextView(checkpoint.deltaSec))

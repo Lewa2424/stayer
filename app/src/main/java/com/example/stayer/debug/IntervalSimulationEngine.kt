@@ -2,6 +2,7 @@ package com.example.stayer.debug
 
 import com.example.stayer.IntervalScenario
 import com.example.stayer.Segment
+import com.example.stayer.WorkoutHistorySegment
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,7 +25,10 @@ class IntervalSimulationEngine(
     // Internal state mirroring handleIntervalTick
     private var segmentIndex = 0
     private var segmentStartElapsedSec = 0
+    private var segmentStartDistanceM = 0.0
     private var lastAnnouncedSegmentIndex = -1
+    private val completedHistorySegments = mutableListOf<WorkoutHistorySegment>()
+    private var nextHistorySegmentNumber = 1
 
     // Stable phase tracking (ignore first 3s of WORK for pace estimation)
     private val workIgnoreSec = 3
@@ -71,7 +75,10 @@ class IntervalSimulationEngine(
         _state.value = IntervalSimState(segmentTotal = scenario.segments.size)
         segmentIndex = 0
         segmentStartElapsedSec = 0
+        segmentStartDistanceM = 0.0
         lastAnnouncedSegmentIndex = -1
+        completedHistorySegments.clear()
+        nextHistorySegmentNumber = 1
         stableStarted = false
         stableStartDistanceM = 0.0
         stableDeltasM.clear()
@@ -82,6 +89,14 @@ class IntervalSimulationEngine(
         warned10sIndex = -1
         endReportIndex = -1
         promptLog.clear()
+    }
+
+    /**
+     * Возвращает завершённые work-участки симуляции для сохранения в историю.
+     * Returns completed work segments from simulation for persisting into history.
+     */
+    fun getSegmentDetails(): List<WorkoutHistorySegment> {
+        return completedHistorySegments.toList()
     }
 
     private fun addPrompt(text: String) {
@@ -211,6 +226,8 @@ class IntervalSimulationEngine(
 
         // 6) Segment transition
         if (remainingSec <= 0) {
+            recordSegmentForHistory(seg, newDistM - segmentStartDistanceM, inSegSec)
+
             // End report for WORK
             if (seg.type == "WORK" && seg.targetPaceSecPerKm != null && endReportIndex != segmentIndex) {
                 endReportIndex = segmentIndex
@@ -242,6 +259,7 @@ class IntervalSimulationEngine(
             }
 
             segmentStartElapsedSec = newSec
+            segmentStartDistanceM = newDistM
             lastIntervalHintInSegSec = -1
         }
 
@@ -262,6 +280,24 @@ class IntervalSimulationEngine(
             segmentTargetPace = curSeg?.targetPaceSecPerKm,
             lastPrompt = lastPrompt,
             promptLog = promptLog.toList()
+        )
+    }
+
+    /**
+     * Сохраняет завершённый work-участок симуляции в историю тестов.
+     * Stores completed simulated work segment for test history.
+     */
+    private fun recordSegmentForHistory(seg: Segment, segDistM: Double, segTimeSec: Int) {
+        if (seg.type != "WORK" || segDistM <= 0.0 || segTimeSec <= 0) return
+        val distanceKm = (segDistM / 1000.0).toFloat()
+        val actualPace = ((segTimeSec / (segDistM / 1000.0))).toInt()
+        completedHistorySegments += WorkoutHistorySegment(
+            title = "Участок ${nextHistorySegmentNumber++}",
+            type = seg.type,
+            distanceKm = distanceKm,
+            durationSec = segTimeSec,
+            actualPaceSecPerKm = actualPace,
+            targetPaceSecPerKm = seg.targetPaceSecPerKm
         )
     }
 }
