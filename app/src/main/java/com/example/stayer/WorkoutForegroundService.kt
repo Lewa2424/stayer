@@ -33,6 +33,7 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.gson.Gson
 import com.example.stayer.engine.CadenceFallbackEngine
+import com.example.stayer.engine.CurrentPaceEstimator
 import com.example.stayer.history.WorkoutHistoryRepository
 import kotlinx.coroutines.*
 import java.io.File
@@ -75,6 +76,7 @@ class WorkoutForegroundService : Service() {
         const val EXTRA_ELAPSED_MS = "extra_elapsed_ms"
         const val EXTRA_IS_RUNNING = "extra_is_running"
         const val EXTRA_IS_PAUSED = "extra_is_paused"
+        const val EXTRA_CURRENT_PACE_SEC_PER_KM = "extra_current_pace_sec_per_km"
 
         const val ACTION_BROADCAST_FINAL_SNAPSHOT = "com.example.stayer.action.FINAL_SNAPSHOT"
         const val EXTRA_SNAPSHOT_JSON = "extra_snapshot_json"
@@ -168,6 +170,7 @@ class WorkoutForegroundService : Service() {
 
     // Smart Pace Corrector (30-sec rolling window)
     private val paceCorrector = com.example.stayer.engine.PaceCorrectionManager()
+    private val currentPaceEstimator = CurrentPaceEstimator()
 
     // Phase accumulators for history stats (distance in meters, time in seconds)
     private var accumWorkDistM = 0.0
@@ -188,6 +191,9 @@ class WorkoutForegroundService : Service() {
     private var lastPacerCheckpointDistanceM = 0.0
     private var lastPacerCheckpointElapsedSec = 0
     private var pacerPraiseAlternate = false
+    private var comboPaceCheckpointDistanceM = 0.0
+    private var comboPaceCheckpointElapsedSec = 0
+    private var comboPacePraiseAlternate = false
 
     // Emergency monitor state (250m check)
     private var lastEmergencyCheckDistKm = 0.0
@@ -477,6 +483,7 @@ class WorkoutForegroundService : Service() {
         lastAcceptedRawLocation = null
         lastSmoothedLocation = null
         smoother.reset()
+        currentPaceEstimator.reset()
         // Reset emergency monitor
         lastEmergencyCheckDistKm = 0.0
         lastCheckpointProgress = com.example.stayer.debug.GlobalProgress.ON_TRACK
@@ -508,6 +515,7 @@ class WorkoutForegroundService : Service() {
                     // 3. Pace Corrector: fallback is the source of truth only outside STABLE GPS mode
                     if (fallbackEngine.currentState != CadenceFallbackEngine.State.STABLE) {
                         paceCorrector.feedSample(fallbackDistM, 1.0)
+                        currentPaceEstimator.feed(fallbackDistM, 1.0)
                     }
 
                     // 4. Normal-mode corrector suggestion
@@ -601,6 +609,7 @@ class WorkoutForegroundService : Service() {
             putExtra(EXTRA_ELAPSED_MS, currentElapsedMs())
             putExtra(EXTRA_IS_RUNNING, isRunning)
             putExtra(EXTRA_IS_PAUSED, isPaused)
+            putExtra(EXTRA_CURRENT_PACE_SEC_PER_KM, currentPaceEstimator.currentPaceSecPerKm() ?: -1)
 
             // Interval extras (always sent; UI decides what to show)
             val scenario = intervalScenario
@@ -725,6 +734,7 @@ class WorkoutForegroundService : Service() {
                     totalDistanceKm += (acceptedDistM.toFloat() / 1000f)
                     if (fallbackEngine.currentState == CadenceFallbackEngine.State.STABLE && deltaTimeSec > 0.0) {
                         paceCorrector.feedSample(acceptedDistM, deltaTimeSec)
+                        currentPaceEstimator.feed(acceptedDistM, deltaTimeSec)
                     }
                 }
             }
@@ -856,6 +866,8 @@ class WorkoutForegroundService : Service() {
      * Stays silent if < 30 sec to the next distance checkpoint.
      */
     private fun maybePaceCorrectorNormal(currentDistanceKm: Float) {
+        if (!isPaceCorrectorEnabled()) return
+
         val goal = loadNormalGoal() ?: return
         val targetDist = goal.targetDistanceKm ?: 0f
         val targetTimeSec = goal.targetTimeSec ?: 0
@@ -887,6 +899,11 @@ class WorkoutForegroundService : Service() {
             speak(suggestion, cond)
             paceCorrector.triggerCooldown(System.currentTimeMillis())
         }
+    }
+
+    private fun isPaceCorrectorEnabled(): Boolean {
+        return getSharedPreferences("Goals", MODE_PRIVATE)
+            .getBoolean(GoalActivity.PACE_CORRECTOR_ENABLED, true)
     }
 
     private fun maybeNotifyPace(currentDistanceKm: Float) {
@@ -1052,6 +1069,7 @@ class WorkoutForegroundService : Service() {
         lastPacerCheckpointDistanceM = 0.0
         lastPacerCheckpointElapsedSec = 0
         pacerPraiseAlternate = false
+        resetComboPaceCheckpointState()
         writeLog("SCENARIO_RESET: segmentIndex=$segmentIndex, lastAnnouncedSegmentIndex=$lastAnnouncedSegmentIndex, segmentStartElapsedSec=$segmentStartElapsedSec, segmentStartDistanceM=$segmentStartDistanceM")
     }
 
@@ -1083,6 +1101,9 @@ class WorkoutForegroundService : Service() {
             // Reset stable tracking for new segment
             stableStarted = false
             stableDeltasM.clear()
+            if (seg.type == "PACE") {
+                resetComboPaceCheckpointState()
+            }
 
             speakSegmentStart(seg)
             broadcastIntervalState(seg, remainingSec.coerceAtLeast(0), segmentIndex + 1, scenario.segments.size)
@@ -1110,7 +1131,7 @@ class WorkoutForegroundService : Service() {
         }
 
         // 5) Smart Pace Corrector for WORK segments (replaces old mid-hints)
-        if (seg.type == "WORK" && seg.targetPaceSecPerKm != null && remainingSec > 20) {
+        if (seg.type == "WORK" && seg.targetPaceSecPerKm != null && remainingSec > 20 && isPaceCorrectorEnabled()) {
             val suggestion = paceCorrector.maybeSuggest(
                 targetPaceSecPerKm = seg.targetPaceSecPerKm,
                 currentTimeMs = System.currentTimeMillis(),
@@ -1155,7 +1176,7 @@ class WorkoutForegroundService : Service() {
             }
 
             // Corrector between checkpoints
-            if (remainingSec > 20) {
+            if (remainingSec > 20 && isPaceCorrectorEnabled()) {
                 val suggestion = paceCorrector.maybeSuggest(
                     targetPaceSecPerKm = seg.targetPaceSecPerKm,
                     currentTimeMs = System.currentTimeMillis(),
@@ -1172,25 +1193,7 @@ class WorkoutForegroundService : Service() {
         // 6.5) PACE segment: normal pacer hints every 500m
         if (isPaceSegment && seg.targetPaceSecPerKm != null) {
             val segDistM = totalDistM - segmentStartDistanceM
-            val targetDistM = seg.distanceKm!! * 1000.0
-            // Checkpoint every 500m (or 10% of total, whichever is smaller)
-            val checkpointStep = minOf(500.0, targetDistM * 0.1).coerceAtLeast(100.0)
-            val lastCheckpointN = ((segDistM - deltaM) / checkpointStep).toInt()
-            val curCheckpointN = (segDistM / checkpointStep).toInt()
-            if (curCheckpointN > lastCheckpointN && segDistM < targetDistM - 50) {
-                val curPace = estimatePaceFromWindow()
-                if (curPace != null && seg.targetPaceSecPerKm > 0) {
-                    val diff = curPace - seg.targetPaceSecPerKm
-                    val prompt = when {
-                        kotlin.math.abs(diff) <= 15 -> "Темп хороший. Осталось ${String.format("%.1f", (targetDistM - segDistM) / 1000.0)} км."
-                        diff > 15 -> "Темп ${formatPaceShort(curPace)}. Нужен ${formatPaceShort(seg.targetPaceSecPerKm)}. Ускорьтесь."
-                        else -> "Не гони. Темп ${formatPaceShort(curPace)}."
-                    }
-                    val cond = "Чекпоинт свободного бега. Пройдено: ${String.format("%.1f", segDistM / 1000.0)} км, текущий темп: ${formatPaceShort(curPace)}, разница: $diff сек"
-                    speak(prompt, cond)
-                    paceCorrector.triggerCooldown(System.currentTimeMillis())
-                }
-            }
+            maybeNotifyComboPaceSegment(seg, segDistM, inSegSec, deltaM)
         }
 
         // 7) Segment transition
@@ -1225,6 +1228,7 @@ class WorkoutForegroundService : Service() {
             segmentStartDistanceM = totalDistM
             lastIntervalHintInSegSec = -1  // reset hint timer for new segment
             paceCorrector.reset()  // restart 30-sec warm-up for new segment
+            resetComboPaceCheckpointState()
             // Next tick will announce the new segment
         }
     }
@@ -1240,6 +1244,72 @@ class WorkoutForegroundService : Service() {
         if (speed <= 0.1) return null
 
         return (1000.0 / speed).toInt()
+    }
+
+    /**
+     * Обычный темповый чекпоинт внутри combo-блока PACE.
+     * Normal-mode style checkpoint inside a combo PACE block.
+     */
+    private fun maybeNotifyComboPaceSegment(seg: Segment, segDistM: Double, inSegSec: Int, deltaM: Double) {
+        val targetDistKm = seg.distanceKm ?: return
+        val targetPace = seg.targetPaceSecPerKm ?: return
+        if (targetDistKm <= 0.0 || targetPace <= 0 || inSegSec <= 0) return
+
+        val targetDistM = targetDistKm * 1000.0
+        val checkpointStep = minOf(500.0, targetDistM * 0.1).coerceAtLeast(100.0)
+        val lastCheckpointN = ((segDistM - deltaM).coerceAtLeast(0.0) / checkpointStep).toInt()
+        val currentCheckpointN = (segDistM / checkpointStep).toInt()
+        if (currentCheckpointN <= lastCheckpointN || segDistM >= targetDistM - 50.0) return
+
+        val deltaDistM = segDistM - comboPaceCheckpointDistanceM
+        val deltaTimeSec = inSegSec - comboPaceCheckpointElapsedSec
+        comboPaceCheckpointDistanceM = segDistM
+        comboPaceCheckpointElapsedSec = inSegSec
+        if (deltaDistM < 10.0 || deltaTimeSec <= 0) return
+
+        val currentPace = (deltaTimeSec / (deltaDistM / 1000.0)).roundToInt()
+        if (currentPace !in 180..1200) return
+
+        val currentDistKm = segDistM / 1000.0
+        val targetTotalSec = (targetDistKm * targetPace).roundToInt()
+        val averagePace = (inSegSec / currentDistKm).roundToInt()
+        val predictedFinishSec = (averagePace * targetDistKm).roundToInt()
+        val finishDeltaSec = predictedFinishSec - targetTotalSec
+        val remainingDistKm = (targetDistKm - currentDistKm).coerceAtLeast(0.0)
+        val timeLeftSec = targetTotalSec - inSegSec
+        val localDiffSecPerKm = currentPace - targetPace
+        val globalProgress = when {
+            kotlin.math.abs(finishDeltaSec.toDouble()) <= 30.0 -> com.example.stayer.debug.GlobalProgress.ON_TRACK
+            finishDeltaSec > 30 -> com.example.stayer.debug.GlobalProgress.BEHIND
+            else -> com.example.stayer.debug.GlobalProgress.AHEAD
+        }
+
+        val (message, nextPraiseAlternate) = com.example.stayer.debug.PacerLogicHelper.buildNormalPacerPrompt(
+            globalProgress = globalProgress,
+            globalDeltaSec = finishDeltaSec,
+            localDiffSecPerKm = localDiffSecPerKm,
+            currentPaceSecPerKm = currentPace,
+            targetPaceSecPerKm = targetPace,
+            remainingDistKm = remainingDistKm,
+            timeLeftSec = timeLeftSec,
+            currentDistKm = currentDistKm,
+            pacerPraiseAlternate = comboPacePraiseAlternate
+        )
+        comboPacePraiseAlternate = nextPraiseAlternate
+
+        val cond = "Чекпоинт обычного блока комбо. Пройдено: ${String.format(Locale.getDefault(), "%.2f", currentDistKm)} км, темп отрезка: ${formatPaceShort(currentPace)}, цель: ${formatPaceShort(targetPace)}, прогноз: ${finishDeltaSec} сек"
+        speak(message, cond)
+        paceCorrector.triggerCooldown(System.currentTimeMillis())
+    }
+
+    /**
+     * Сбрасывает состояние чекпоинтов обычного блока combo.
+     * Resets checkpoint state for a combo normal block.
+     */
+    private fun resetComboPaceCheckpointState() {
+        comboPaceCheckpointDistanceM = 0.0
+        comboPaceCheckpointElapsedSec = 0
+        comboPacePraiseAlternate = false
     }
 
     /** Accumulate distance/time for the completed segment into per-type buckets. */
@@ -1371,7 +1441,7 @@ class WorkoutForegroundService : Service() {
             "WORK" -> "Работа"
             "REST" -> "Отдых"
             "COOLDOWN" -> "Заминка"
-            "PACE" -> "Свободный бег"
+            "PACE" -> "Обычная"
             else -> "Сегмент"
         }
 
@@ -1402,6 +1472,11 @@ class WorkoutForegroundService : Service() {
     private fun broadcastIntervalState(seg: Segment, remainingSec: Int, idx: Int, total: Int) {
         val intent = Intent(ACTION_BROADCAST_UPDATE).apply {
             `package` = packageName
+            putExtra(EXTRA_DISTANCE_KM, totalDistanceKm)
+            putExtra(EXTRA_ELAPSED_MS, currentElapsedMs())
+            putExtra(EXTRA_IS_RUNNING, isRunning)
+            putExtra(EXTRA_IS_PAUSED, isPaused)
+            putExtra(EXTRA_CURRENT_PACE_SEC_PER_KM, currentPaceEstimator.currentPaceSecPerKm() ?: -1)
             putExtra("interval_active", true)
             putExtra("interval_type", seg.type)
             putExtra("interval_remaining_sec", remainingSec)

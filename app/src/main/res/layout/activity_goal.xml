@@ -426,6 +426,25 @@
             android:textColor="#888888"
             android:layout_marginTop="4dp"/>
 
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/swPaceCorrector"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Корректировщик темпа"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:checked="true"
+            android:layout_marginTop="18dp"/>
+
+        <TextView
+            android:id="@+id/tvPaceCorrectorHint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Включает короткие подсказки «быстрее/медленнее». Чекпоинты и отчёты этапов остаются активными."
+            android:textSize="12sp"
+            android:textColor="#888888"
+            android:layout_marginTop="4dp"/>
+
         <!-- Кнопка "Назад" -->
         <Button
             android:id="@+id/backButton"

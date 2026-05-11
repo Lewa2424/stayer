@@ -15,6 +15,8 @@ import androidx.appcompat.widget.AppCompatButton
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.recyclerview.widget.RecyclerView
 import com.example.stayer.history.WorkoutHistoryRepository
+import com.example.stayer.history.WorkoutPaceChartPoint
+import com.example.stayer.history.WorkoutPaceChartView
 import java.util.Locale
 
 class WorkoutHistoryAdapter(
@@ -71,6 +73,24 @@ class WorkoutHistoryAdapter(
 
     private fun saveHistoryList(list: List<WorkoutHistory>) {
         WorkoutHistoryRepository(context).saveAll(list)
+    }
+
+    private fun formatSemanticClockDelta(deltaSec: Int): String {
+        val sign = when {
+            deltaSec > 0 -> "+"
+            deltaSec < 0 -> "−"
+            else -> ""
+        }
+        return "$sign${formatClock(kotlin.math.abs(deltaSec))}"
+    }
+
+    private fun formatSemanticPaceDelta(deltaSec: Int): String {
+        val sign = when {
+            deltaSec > 0 -> "+"
+            deltaSec < 0 -> "−"
+            else -> ""
+        }
+        return "$sign${formatSecPerKm(kotlin.math.abs(deltaSec))}"
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): WorkoutViewHolder {
@@ -181,6 +201,15 @@ class WorkoutHistoryAdapter(
                 addSummaryLine("Отклонение от цели: $it")
             }
 
+            buildNormalDeviationDelta(workout)?.let { deltaSec ->
+                val color = when {
+                    deltaSec > 0 -> positiveDeltaColor
+                    deltaSec < 0 -> negativeDeltaColor
+                    else -> secondaryTextColor
+                }
+                (summaryContainer.getChildAt(summaryContainer.childCount - 1) as? TextView)?.setTextColor(color)
+            }
+
             val checkpoints = workout.checkpointDetails.orEmpty()
             if (checkpoints.isNotEmpty()) {
                 bindCheckpointToggle(checkpoints)
@@ -209,6 +238,10 @@ class WorkoutHistoryAdapter(
             if (segments.isNotEmpty()) {
                 segmentsTitle.visibility = View.VISIBLE
                 segmentsContainer.visibility = View.VISIBLE
+                if (workout.workoutMode == "interval") {
+                    addIntervalPaceChart(segments)
+                    addIntervalDeviationBlock(segments)
+                }
                 segments.forEach { segment ->
                     addSegmentLine(buildSegmentLine(workout, segment))
                 }
@@ -251,7 +284,13 @@ class WorkoutHistoryAdapter(
         private fun buildNormalDeviation(workout: WorkoutHistory): String? {
             val targetTime = workout.targetTimeSec ?: return null
             val actualTime = (workout.elapsedMs / 1000L).toInt().takeIf { it > 0 } ?: parseTimeToSec(workout.time)
-            return formatSignedClockDelta(actualTime - targetTime)
+            return formatSemanticClockDelta(targetTime - actualTime)
+        }
+
+        private fun buildNormalDeviationDelta(workout: WorkoutHistory): Int? {
+            val targetTime = workout.targetTimeSec ?: return null
+            val actualTime = (workout.elapsedMs / 1000L).toInt().takeIf { it > 0 } ?: parseTimeToSec(workout.time)
+            return targetTime - actualTime
         }
 
         private fun bindCheckpointToggle(checkpoints: List<WorkoutHistoryCheckpoint>) {
@@ -276,6 +315,8 @@ class WorkoutHistoryAdapter(
             segmentsTitle.text = "Детали чекпоинтов"
             segmentsTitle.visibility = View.VISIBLE
             segmentsContainer.visibility = View.VISIBLE
+            addCheckpointPaceChart(checkpoints)
+            addSectionTitle("Отклонения")
             checkpoints.forEachIndexed { index, checkpoint ->
                 addCheckpointLine(index, checkpoint)
             }
@@ -297,6 +338,71 @@ class WorkoutHistoryAdapter(
             container.addView(makeTextView("Темп: ${formatSecPerKm(checkpoint.paceSecPerKm)}", secondary = false, topMarginDp = 4))
             container.addView(makeDeltaTextView(checkpoint.deltaSec))
             segmentsContainer.addView(container)
+        }
+
+        private fun addCheckpointPaceChart(checkpoints: List<WorkoutHistoryCheckpoint>) {
+            val points = checkpoints.mapIndexed { index, checkpoint ->
+                WorkoutPaceChartPoint(
+                    label = (index + 1).toString(),
+                    paceSecPerKm = checkpoint.paceSecPerKm
+                )
+            }
+            addChartBlock("График темпа", points)
+        }
+
+        private fun addIntervalPaceChart(segments: List<WorkoutHistorySegment>) {
+            val points = segments.mapIndexedNotNull { index, segment ->
+                val pace = segment.actualPaceSecPerKm ?: return@mapIndexedNotNull null
+                WorkoutPaceChartPoint(
+                    label = (index + 1).toString(),
+                    paceSecPerKm = pace
+                )
+            }
+            addChartBlock("График темпа", points)
+        }
+
+        private fun addIntervalDeviationBlock(segments: List<WorkoutHistorySegment>) {
+            val deviationSegments = segments.filter { it.actualPaceSecPerKm != null && it.targetPaceSecPerKm != null }
+            if (deviationSegments.isEmpty()) return
+
+            addSectionTitle("Отклонения")
+            deviationSegments.forEachIndexed { index, segment ->
+                val target = segment.targetPaceSecPerKm ?: return@forEachIndexed
+                val actual = segment.actualPaceSecPerKm ?: return@forEachIndexed
+                val deltaSec = target - actual
+                val line = makeDeltaTextView(deltaSec).apply {
+                    text = "${index + 1}) ${segment.title}: ${formatSignedPaceDelta(deltaSec)}"
+                }
+                segmentsContainer.addView(line)
+            }
+        }
+
+        private fun addChartBlock(title: String, points: List<WorkoutPaceChartPoint>) {
+            if (points.isEmpty()) return
+
+            addSectionTitle(title)
+            val chartView = WorkoutPaceChartView(context).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    dp(180)
+                ).apply {
+                    topMargin = dp(8)
+                    bottomMargin = dp(4)
+                }
+                setPadding(dp(4), dp(4), dp(4), dp(4))
+                setPoints(points)
+            }
+            segmentsContainer.addView(chartView)
+        }
+
+        private fun addSectionTitle(text: String) {
+            segmentsContainer.addView(
+                makeTextView(
+                    text,
+                    secondary = true,
+                    topMarginDp = if (segmentsContainer.childCount == 0) 0 else 10
+                )
+            )
         }
 
         private fun buildCheckpointRange(checkpoint: WorkoutHistoryCheckpoint): String {

@@ -13,6 +13,7 @@ import androidx.appcompat.app.AppCompatActivity
 import android.widget.Toast
 import android.content.SharedPreferences
 import androidx.core.content.edit
+import androidx.appcompat.widget.SwitchCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.gson.Gson
@@ -66,6 +67,7 @@ class GoalActivity : AppCompatActivity() {
 
         // Location type: 0=stadium (smoothing ON), 1=park (smoothing OFF)
         const val LOCATION_TYPE = "LOCATION_TYPE"
+        const val PACE_CORRECTOR_ENABLED = "PACE_CORRECTOR_ENABLED"
 
     }
 
@@ -339,21 +341,28 @@ class GoalActivity : AppCompatActivity() {
             prefs.edit().putInt(LOCATION_TYPE, locType).apply()
         }
 
+        val swPaceCorrector = findViewById<SwitchCompat>(R.id.swPaceCorrector)
+        swPaceCorrector.isChecked = prefs.getBoolean(PACE_CORRECTOR_ENABLED, true)
+        swPaceCorrector.setOnCheckedChangeListener { _, isChecked ->
+            prefs.edit().putBoolean(PACE_CORRECTOR_ENABLED, isChecked).apply()
+        }
+
         // Обработчик нажатия на кнопку "Назад"
         backButton.setOnClickListener {
             finish()
         }
 
         // === Восстановить сохранённые значения ===
-        restoreSavedFields(prefs)
+        restoreSavedFields(prefs, savedMode)
     }
 
-    private fun restoreSavedFields(prefs: SharedPreferences) {
+    private fun restoreSavedFields(prefs: SharedPreferences, activeMode: Int) {
         // --- Normal mode fields ---
         val savedDist = prefs.getFloat(TARGET_DISTANCE_KM, 0f)
         val savedTimeSec = prefs.getInt(TARGET_TIME_SEC, 0)
         val savedPaceSec = prefs.getInt(TARGET_PACE_SEC_PER_KM, 0)
 
+        if (activeMode == 0) {
         if (savedDist > 0f) {
             distanceInput.setText(String.format("%.2f", savedDist))
         }
@@ -374,10 +383,11 @@ class GoalActivity : AppCompatActivity() {
                 tvNormalDerived.text = "✓ Сохранено. Расчётное время: ${formatTime(savedTimeSec)}"
             }
         }
+        }
 
         // --- Interval mode fields ---
         val json = prefs.getString(INTERVAL_SCENARIO_JSON, null)
-        if (!json.isNullOrBlank()) {
+        if (activeMode == 1 && !json.isNullOrBlank()) {
             try {
                 val scenario = Gson().fromJson(json, IntervalScenario::class.java)
                 if (scenario != null && scenario.segments.isNotEmpty()) {
@@ -388,7 +398,7 @@ class GoalActivity : AppCompatActivity() {
 
         // --- Combo mode fields ---
         val comboJson = prefs.getString(COMBO_SCENARIO_JSON, null)
-        if (!comboJson.isNullOrBlank()) {
+        if (activeMode == 2 && !comboJson.isNullOrBlank()) {
             try {
                 val combo = comboGson().fromJson(comboJson, ComboScenario::class.java)
                 if (combo != null && combo.blocks.isNotEmpty()) {

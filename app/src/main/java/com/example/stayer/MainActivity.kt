@@ -99,6 +99,7 @@ class MainActivity : AppCompatActivity() {
     private var uiIsPaused by mutableStateOf(false)
     private var uiGoalValue by mutableStateOf("—")
     private var uiGoalSupporting by mutableStateOf<String?>(null)
+    private var uiCurrentPaceText by mutableStateOf("—")
 
     // Interval UI state (from service broadcast)
     private var uiIntervalActive by mutableStateOf(false)
@@ -325,6 +326,7 @@ class MainActivity : AppCompatActivity() {
                         isPaused = uiIsPaused,
                         elapsedMs = uiElapsedMs,
                         distanceKm = (uiGpsDistanceKm + uiStepDistanceKm),
+                        paceText = uiCurrentPaceText,
                         goalValueText = uiGoalValue,
                         goalSupportingText = uiGoalSupporting,
                         onHistoryClick = {
@@ -666,6 +668,13 @@ class MainActivity : AppCompatActivity() {
         return String.format(Locale.getDefault(), "%d:%02d/\u043a\u043c", m, s)
     }
 
+    private fun formatCurrentPaceForUi(secPerKm: Int): String {
+        if (secPerKm <= 0) return "—"
+        val m = secPerKm / 60
+        val s = secPerKm % 60
+        return String.format(Locale.getDefault(), "%d:%02d /\u043a\u043c", m, s)
+    }
+
     private fun fmtHms(sec: Int): String {
         val h = sec / 3600; val m = (sec % 3600) / 60; val s = sec % 60
         return if (h > 0) String.format(Locale.getDefault(), "%d:%02d:%02d", h, m, s) else String.format(Locale.getDefault(), "%02d:%02d", m, s)
@@ -682,11 +691,16 @@ class MainActivity : AppCompatActivity() {
                     val elapsedMs = intent.getLongExtra(WorkoutForegroundService.EXTRA_ELAPSED_MS, 0L)
                     val running = intent.getBooleanExtra(WorkoutForegroundService.EXTRA_IS_RUNNING, false)
                     val paused = intent.getBooleanExtra(WorkoutForegroundService.EXTRA_IS_PAUSED, false)
+                    val currentPaceSecPerKm = intent.getIntExtra(
+                        WorkoutForegroundService.EXTRA_CURRENT_PACE_SEC_PER_KM,
+                        -1
+                    )
 
                     lastElapsedMsFromService = elapsedMs
                     totalDistance = gpsDistanceKm
                     uiGpsDistanceKm = gpsDistanceKm
                     uiElapsedMs = elapsedMs
+                    uiCurrentPaceText = formatCurrentPaceForUi(currentPaceSecPerKm)
 
                     // Состояние кнопки — из сервиса (источник истины)
                     isTimerRunning = running
@@ -832,6 +846,7 @@ class MainActivity : AppCompatActivity() {
         uiStepDistanceKm = 0f
         lastPaceCheckDistance = 0f
         uiElapsedMs = 0L
+        uiCurrentPaceText = "—"
         startTime = 0
 
         writeLog("UI_RESET_DONE")

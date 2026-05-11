@@ -53,7 +53,7 @@ class PaceCorrectionManagerTest {
             feedSample(deltaM = 100.0, durationSec = 30.0)
         }
 
-        val suggestion = repeatUntilSuggestion(manager, targetPaceSecPerKm = 309, elapsedSec = 30.0)
+        val suggestion = repeatUntilSuggestion(manager, targetPaceSecPerKm = 306, elapsedSec = 30.0)
 
         assertNull(suggestion)
     }

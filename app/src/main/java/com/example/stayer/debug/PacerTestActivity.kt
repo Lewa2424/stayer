@@ -579,7 +579,7 @@ fun ComboTestScreen(engine: ComboSimulationEngine, combo: ComboScenario, onStop:
                         "WORK" -> "Работа"
                         "REST" -> "Отдых"
                         "COOLDOWN" -> "Заминка"
-                        "PACE" -> "Свободный бег"
+                        "PACE" -> "Обычная"
                         else -> seg.type
                     }
                     val detail = if (seg.type == "PACE" && seg.distanceKm != null) {
@@ -639,7 +639,7 @@ fun ComboTestScreen(engine: ComboSimulationEngine, combo: ComboScenario, onStop:
                     "WORK" -> "Работа"
                     "REST" -> "Отдых"
                     "COOLDOWN" -> "Заминка"
-                    "PACE" -> "Свободный бег"
+                    "PACE" -> "Обычная"
                     else -> state.segmentType
                 }
                 Text(

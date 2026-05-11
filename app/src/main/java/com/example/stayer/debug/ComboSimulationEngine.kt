@@ -4,6 +4,7 @@ import com.example.stayer.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlin.math.roundToInt
 
 /**
  * Simulation engine for combo (mixed) workouts.
@@ -44,6 +45,9 @@ class ComboSimulationEngine(
 
     // PACE checkpoint tracking
     private var lastPaceCheckpointN = 0
+    private var paceCheckpointDistanceM = 0.0
+    private var paceCheckpointElapsedSec = 0
+    private var pacePraiseAlternate = false
 
     // Prompt log
     private val promptLog = mutableListOf<String>()
@@ -74,7 +78,7 @@ class ComboSimulationEngine(
         nextHistorySegmentNumber = 1
         lastIntervalHintInSegSec = -1; intervalHintAlternate = false
         midHintDone = false; warned10sIndex = -1; endReportIndex = -1
-        lastPaceCheckpointN = 0
+        resetPaceCheckpointState()
         promptLog.clear()
     }
 
@@ -117,11 +121,11 @@ class ComboSimulationEngine(
         if (segmentIndex != lastAnnouncedSegmentIndex) {
             lastAnnouncedSegmentIndex = segmentIndex
             stableStarted = false
-            lastPaceCheckpointN = 0
+            resetPaceCheckpointState()
 
             val label = when (seg.type) {
                 "WARMUP" -> "Разминка"; "WORK" -> "Работа"; "REST" -> "Отдых"
-                "COOLDOWN" -> "Заминка"; "PACE" -> "Свободный бег"; else -> "Сегмент"
+                "COOLDOWN" -> "Заминка"; "PACE" -> "Обычная"; else -> "Сегмент"
             }
             val detail = if (isPaceSegment) {
                 val d = String.format("%.1f км", seg.distanceKm)
@@ -180,7 +184,7 @@ class ComboSimulationEngine(
             }
         }
 
-        // PACE segment: checkpoint hints every 500m
+        // PACE segment: normal-mode checkpoint hints every 500m / 10%.
         if (isPaceSegment && seg.targetPaceSecPerKm != null) {
             val segDistM = newDistM - segmentStartDistanceM
             val targetDistM = seg.distanceKm!! * 1000.0
@@ -188,17 +192,7 @@ class ComboSimulationEngine(
             val curN = (segDistM / step).toInt()
             if (curN > lastPaceCheckpointN && segDistM < targetDistM - 50) {
                 lastPaceCheckpointN = curN
-                val curPace = estimatePace()
-                if (curPace != null) {
-                    val diff = curPace - seg.targetPaceSecPerKm
-                    val remaining = (targetDistM - segDistM) / 1000.0
-                    val prompt = when {
-                        kotlin.math.abs(diff) <= 15 -> "Темп хороший. Осталось ${String.format("%.1f", remaining)} км."
-                        diff > 15 -> "Темп ${PacerLogicHelper.formatPaceForSpeech(curPace)}. Нужен ${PacerLogicHelper.formatPaceForSpeech(seg.targetPaceSecPerKm)}. Ускорьтесь."
-                        else -> "Не гони. Темп ${PacerLogicHelper.formatPaceForSpeech(curPace)}."
-                    }
-                    addPrompt(prompt)
-                }
+                notifyPaceCheckpoint(seg, segDistM, inSegSec)
             }
         }
 
@@ -245,7 +239,7 @@ class ComboSimulationEngine(
             lastIntervalHintInSegSec = -1
             midHintDone = false
             stableStarted = false
-            lastPaceCheckpointN = 0
+            resetPaceCheckpointState()
         }
 
         val curPace = estimatePace() ?: 0
@@ -285,5 +279,60 @@ class ComboSimulationEngine(
             actualPaceSecPerKm = actualPace,
             targetPaceSecPerKm = seg.targetPaceSecPerKm
         )
+    }
+
+    /**
+     * Формирует обычный чекпоинт для PACE-блока в combo-симуляции.
+     * Builds a normal-mode checkpoint for a PACE block in combo simulation.
+     */
+    private fun notifyPaceCheckpoint(seg: Segment, segDistM: Double, inSegSec: Int) {
+        val targetDistKm = seg.distanceKm ?: return
+        val targetPace = seg.targetPaceSecPerKm ?: return
+        if (targetDistKm <= 0.0 || targetPace <= 0 || inSegSec <= 0) return
+
+        val deltaDistM = segDistM - paceCheckpointDistanceM
+        val deltaTimeSec = inSegSec - paceCheckpointElapsedSec
+        paceCheckpointDistanceM = segDistM
+        paceCheckpointElapsedSec = inSegSec
+        if (deltaDistM < 10.0 || deltaTimeSec <= 0) return
+
+        val currentPace = (deltaTimeSec / (deltaDistM / 1000.0)).roundToInt()
+        if (currentPace !in 180..1200) return
+
+        val currentDistKm = segDistM / 1000.0
+        val targetTotalSec = (targetDistKm * targetPace).roundToInt()
+        val averagePace = (inSegSec / currentDistKm).roundToInt()
+        val predictedFinishSec = (averagePace * targetDistKm).roundToInt()
+        val finishDeltaSec = predictedFinishSec - targetTotalSec
+        val globalProgress = when {
+            kotlin.math.abs(finishDeltaSec.toDouble()) <= 30.0 -> GlobalProgress.ON_TRACK
+            finishDeltaSec > 30 -> GlobalProgress.BEHIND
+            else -> GlobalProgress.AHEAD
+        }
+
+        val (prompt, nextPraiseAlternate) = PacerLogicHelper.buildNormalPacerPrompt(
+            globalProgress = globalProgress,
+            globalDeltaSec = finishDeltaSec,
+            localDiffSecPerKm = currentPace - targetPace,
+            currentPaceSecPerKm = currentPace,
+            targetPaceSecPerKm = targetPace,
+            remainingDistKm = (targetDistKm - currentDistKm).coerceAtLeast(0.0),
+            timeLeftSec = targetTotalSec - inSegSec,
+            currentDistKm = currentDistKm,
+            pacerPraiseAlternate = pacePraiseAlternate
+        )
+        pacePraiseAlternate = nextPraiseAlternate
+        addPrompt(prompt)
+    }
+
+    /**
+     * Сбрасывает состояние чекпоинтов PACE-блока.
+     * Resets PACE block checkpoint state.
+     */
+    private fun resetPaceCheckpointState() {
+        lastPaceCheckpointN = 0
+        paceCheckpointDistanceM = 0.0
+        paceCheckpointElapsedSec = 0
+        pacePraiseAlternate = false
     }
 }
