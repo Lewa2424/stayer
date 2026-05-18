@@ -35,6 +35,18 @@ import com.google.gson.Gson
 import com.example.stayer.engine.CadenceFallbackEngine
 import com.example.stayer.engine.CurrentPaceEstimator
 import com.example.stayer.history.WorkoutHistoryRepository
+import com.example.stayer.modes.free.FREE_RUN_HISTORY_MODE
+import com.example.stayer.modes.free.FREE_RUN_MODE
+import com.example.stayer.modes.free.FreeRunCheckpointTracker
+import com.example.stayer.modes.free.FreeRunSpeechFormatter
+import com.example.stayer.modes.race.RACE_HISTORY_MODE
+import com.example.stayer.modes.race.RACE_MODE
+import com.example.stayer.modes.race.RaceCheckpointTracker
+import com.example.stayer.modes.race.RacePlan
+import com.example.stayer.modes.race.RacePlanText
+import com.example.stayer.modes.race.RaceProgressEvaluator
+import com.example.stayer.modes.race.RaceSegmentRange
+import com.example.stayer.modes.race.RaceSpeechFormatter
 import kotlinx.coroutines.*
 import java.io.File
 import java.io.FileWriter
@@ -183,6 +195,13 @@ class WorkoutForegroundService : Service() {
     private var accumCooldownTimeSec = 0
     private var segmentStartDistanceM = 0.0
     private var activeWorkoutModeInt = 0
+    private val freeRunCheckpointTracker = FreeRunCheckpointTracker()
+    private val raceCheckpointTracker = RaceCheckpointTracker()
+    private var racePlan: RacePlan? = null
+    private var raceSegmentIndex = 0
+    private var raceSegmentStartDistanceM = 0.0
+    private var raceSegmentStartElapsedSec = 0
+    private var raceStartedAnnouncementDone = false
     private val completedHistorySegments = mutableListOf<WorkoutHistorySegment>()
     private val completedNormalCheckpoints = mutableListOf<WorkoutHistoryCheckpoint>()
     private var nextHistorySegmentNumber = 1
@@ -454,6 +473,7 @@ class WorkoutForegroundService : Service() {
         lastPacerCheckpointElapsedSec = 0
         pacerPraiseAlternate = false
         activeWorkoutModeInt = 0
+        freeRunCheckpointTracker.reset()
         completedHistorySegments.clear()
         completedNormalCheckpoints.clear()
         nextHistorySegmentNumber = 1
@@ -520,6 +540,7 @@ class WorkoutForegroundService : Service() {
 
                     // 4. Normal-mode corrector suggestion
                     maybePaceCorrectorNormal(totalDistanceKm)
+                    maybeNotifyFreeRun(totalDistanceKm)
 
                     // 5. Interval logic
                     handleIntervalTick()
@@ -742,7 +763,10 @@ class WorkoutForegroundService : Service() {
         lastSmoothedLocation = smoothed
 
         maybeAutoPauseOnTarget(totalDistanceKm)
+        maybeNotifyRace(totalDistanceKm)
+        maybeAutoPauseOnRaceTarget(totalDistanceKm)
         maybeNotifyPace(totalDistanceKm)
+        maybeNotifyFreeRun(totalDistanceKm)
         maybeEmergencyAlert(totalDistanceKm)
 
         persistState()
@@ -919,6 +943,100 @@ class WorkoutForegroundService : Service() {
         }
     }
 
+    /**
+     * Озвучивает чекпоинт свободного бега на каждом полном километре.
+     * Speaks the free run checkpoint on each completed full kilometer.
+     */
+    private fun maybeNotifyFreeRun(currentDistanceKm: Float) {
+        if (activeWorkoutModeInt != FREE_RUN_MODE) return
+
+        val checkpoint = freeRunCheckpointTracker.nextCheckpoint(
+            distanceKm = currentDistanceKm,
+            elapsedSec = (currentElapsedMs() / 1000L).toInt()
+        ) ?: return
+
+        val message = FreeRunSpeechFormatter.buildCheckpointSpeech(checkpoint)
+        val condition = "Свободный бег: пройден ${checkpoint.kilometerMark}-й километр, средний темп ${checkpoint.avgPaceSecPerKm} сек/км"
+        speak(message, condition)
+    }
+
+    /**
+     * Озвучивает глобальные чекпоинты и переходы режима забега.
+     * Speaks global checkpoints and segment transitions for race mode.
+     */
+    private fun maybeNotifyRace(currentDistanceKm: Float) {
+        if (activeWorkoutModeInt != RACE_MODE) return
+        val plan = racePlan ?: return
+        val ranges = RaceProgressEvaluator.segmentRanges(plan)
+        if (ranges.isEmpty()) return
+
+        val distanceKm = currentDistanceKm.toDouble()
+        val elapsedSec = (currentElapsedMs() / 1000L).toInt()
+        val activeRange = RaceProgressEvaluator.activeSegment(plan, distanceKm) ?: return
+
+        if (!raceStartedAnnouncementDone) {
+            raceStartedAnnouncementDone = true
+            raceSegmentIndex = activeRange.index
+            raceSegmentStartDistanceM = getTotalDistanceMeters()
+            raceSegmentStartElapsedSec = elapsedSec
+            speak(
+                RaceSpeechFormatter.buildStartSpeech(activeRange),
+                "Забег: старт первого участка ${activeRange.index + 1}"
+            )
+        }
+
+        if (activeRange.index != raceSegmentIndex) {
+            closeRaceSegmentsUpTo(activeRange.index, ranges, elapsedSec)
+            speak(
+                RaceSpeechFormatter.buildTransitionSpeech(activeRange),
+                "Забег: переход на участок ${activeRange.index + 1}"
+            )
+        }
+
+        raceCheckpointTracker.nextCheckpoint(distanceKm, plan.totalDistanceKm)?.let { checkpoint ->
+            val targetElapsedSec = RaceProgressEvaluator.targetElapsedSecAt(plan, checkpoint.distanceKm)
+            val avgPaceSecPerKm = paceOrNull(checkpoint.distanceKm * 1000.0, elapsedSec) ?: return@let
+            val deltaSec = elapsedSec - targetElapsedSec
+            val message = RaceSpeechFormatter.buildCheckpointSpeech(
+                distanceKm = checkpoint.distanceKm,
+                elapsedSec = elapsedSec,
+                avgPaceSecPerKm = avgPaceSecPerKm,
+                deltaSec = deltaSec
+            )
+            speak(message, "Забег: глобальный чекпоинт ${checkpoint.index}/10")
+        }
+
+        raceCheckpointTracker.nextFinishAlert(distanceKm, plan.totalDistanceKm)?.let { remainingKm ->
+            val targetElapsedSec = RaceProgressEvaluator.targetElapsedSecAt(plan, distanceKm)
+            val deltaSec = elapsedSec - targetElapsedSec
+            speak(
+                RaceSpeechFormatter.buildFinishAlertSpeech(remainingKm, deltaSec),
+                "Забег: предупреждение за $remainingKm км до финиша"
+            )
+        }
+    }
+
+    /**
+     * Ставит забег на паузу при достижении общей дистанции.
+     * Auto-pauses race mode when the total race distance is reached.
+     */
+    private fun maybeAutoPauseOnRaceTarget(currentDistanceKm: Float) {
+        if (!isRunning || isPaused || activeWorkoutModeInt != RACE_MODE || goalReached) return
+        val plan = racePlan ?: return
+        if (plan.totalDistanceKm <= 0.0) return
+
+        val epsilon = 0.001f
+        if (currentDistanceKm + epsilon < plan.totalDistanceKm.toFloat()) return
+
+        closeActiveRaceSegment(force = true)
+        goalReached = true
+        speak(
+            "Финиш забега. Тренировка поставлена на паузу.",
+            "Забег: достигнута общая дистанция ${plan.totalDistanceKm} км"
+        )
+        handlePause()
+    }
+
     private fun calculatePaceNotificationStep(currentDistanceKm: Float): Float {
         val targetDistance = loadNormalGoal()?.targetDistanceKm ?: 0f
         if (targetDistance <= 0f) return Float.MAX_VALUE
@@ -1019,6 +1137,12 @@ class WorkoutForegroundService : Service() {
         val goal = loadActiveGoal()
         val mode = goal.workoutMode
         activeWorkoutModeInt = mode
+        racePlan = when (mode) {
+            RACE_MODE -> goal.racePlanJson?.takeIf { it.isNotBlank() }?.let {
+                runCatching { Gson().fromJson(it, RacePlan::class.java) }.getOrNull()
+            }
+            else -> null
+        }
 
         intervalScenario = when (mode) {
             1 -> {
@@ -1053,6 +1177,8 @@ class WorkoutForegroundService : Service() {
         segmentStartElapsedSec = (currentElapsedMs() / 1000).toInt()
         stableStarted = false
         stableDeltasM.clear()
+        freeRunCheckpointTracker.reset()
+        raceCheckpointTracker.reset()
         lastTickDistanceM = getTotalDistanceMeters()
 
         // Reset phase accumulators
@@ -1070,6 +1196,10 @@ class WorkoutForegroundService : Service() {
         lastPacerCheckpointElapsedSec = 0
         pacerPraiseAlternate = false
         resetComboPaceCheckpointState()
+        raceSegmentIndex = 0
+        raceSegmentStartDistanceM = getTotalDistanceMeters()
+        raceSegmentStartElapsedSec = (currentElapsedMs() / 1000).toInt()
+        raceStartedAnnouncementDone = false
         writeLog("SCENARIO_RESET: segmentIndex=$segmentIndex, lastAnnouncedSegmentIndex=$lastAnnouncedSegmentIndex, segmentStartElapsedSec=$segmentStartElapsedSec, segmentStartDistanceM=$segmentStartDistanceM")
     }
 
@@ -1351,6 +1481,29 @@ class WorkoutForegroundService : Service() {
 
     private fun buildSnapshotSegmentDetails(): List<WorkoutHistorySegment> {
         val result = completedHistorySegments.toMutableList()
+        if (activeWorkoutModeInt == RACE_MODE) {
+            val plan = racePlan ?: return result
+            val ranges = RaceProgressEvaluator.segmentRanges(plan)
+            if (raceSegmentIndex !in ranges.indices) return result
+
+            val range = ranges[raceSegmentIndex]
+            val segDistM = (getTotalDistanceMeters() - raceSegmentStartDistanceM).coerceAtLeast(0.0)
+            val segTimeSec = ((currentElapsedMs() / 1000).toInt() - raceSegmentStartElapsedSec).coerceAtLeast(0)
+            if (segDistM < 1.0 && segTimeSec <= 0) return result
+
+            result += WorkoutHistorySegment(
+                title = "Участок $nextHistorySegmentNumber",
+                type = "RACE",
+                distanceKm = (segDistM / 1000.0).toFloat(),
+                durationSec = segTimeSec,
+                actualPaceSecPerKm = paceOrNull(segDistM, segTimeSec),
+                targetPaceSecPerKm = range.targetPaceSecPerKm,
+                fromKm = range.fromKm.toFloat(),
+                toKm = range.toKm.toFloat()
+            )
+            return result
+        }
+
         val scenario = intervalScenario ?: return result
         if (segmentIndex !in scenario.segments.indices) return result
 
@@ -1378,6 +1531,65 @@ class WorkoutForegroundService : Service() {
      */
     private fun buildSnapshotCheckpointDetails(): List<WorkoutHistoryCheckpoint> {
         return completedNormalCheckpoints.toList()
+    }
+
+    /**
+     * Закрывает завершённые участки забега до указанного индекса.
+     * Closes completed race segments up to the given active segment index.
+     */
+    private fun closeRaceSegmentsUpTo(nextSegmentIndex: Int, ranges: List<RaceSegmentRange>, currentElapsedSec: Int) {
+        while (raceSegmentIndex < nextSegmentIndex && raceSegmentIndex in ranges.indices) {
+            val range = ranges[raceSegmentIndex]
+            val currentTotalDistM = getTotalDistanceMeters()
+            val segDistM = (currentTotalDistM - raceSegmentStartDistanceM).coerceAtLeast(0.0)
+            val segTimeSec = (currentElapsedSec - raceSegmentStartElapsedSec).coerceAtLeast(0)
+
+            completedHistorySegments += WorkoutHistorySegment(
+                title = "Участок ${nextHistorySegmentNumber++}",
+                type = "RACE",
+                distanceKm = (segDistM / 1000.0).toFloat(),
+                durationSec = segTimeSec,
+                actualPaceSecPerKm = paceOrNull(segDistM, segTimeSec),
+                targetPaceSecPerKm = range.targetPaceSecPerKm,
+                fromKm = range.fromKm.toFloat(),
+                toKm = range.toKm.toFloat()
+            )
+
+            raceSegmentIndex += 1
+            raceSegmentStartDistanceM = currentTotalDistM
+            raceSegmentStartElapsedSec = currentElapsedSec
+        }
+    }
+
+    /**
+     * Закрывает текущий активный участок забега.
+     * Closes the currently active race segment.
+     */
+    private fun closeActiveRaceSegment(force: Boolean = false) {
+        val plan = racePlan ?: return
+        val ranges = RaceProgressEvaluator.segmentRanges(plan)
+        if (raceSegmentIndex !in ranges.indices) return
+
+        val currentTotalDistM = getTotalDistanceMeters()
+        val currentElapsedSec = (currentElapsedMs() / 1000L).toInt()
+        val segDistM = (currentTotalDistM - raceSegmentStartDistanceM).coerceAtLeast(0.0)
+        val segTimeSec = (currentElapsedSec - raceSegmentStartElapsedSec).coerceAtLeast(0)
+        if (!force && segDistM < 1.0 && segTimeSec <= 0) return
+
+        val range = ranges[raceSegmentIndex]
+        completedHistorySegments += WorkoutHistorySegment(
+            title = "Участок ${nextHistorySegmentNumber++}",
+            type = "RACE",
+            distanceKm = (segDistM / 1000.0).toFloat(),
+            durationSec = segTimeSec,
+            actualPaceSecPerKm = paceOrNull(segDistM, segTimeSec),
+            targetPaceSecPerKm = range.targetPaceSecPerKm,
+            fromKm = range.fromKm.toFloat(),
+            toKm = range.toKm.toFloat()
+        )
+        raceSegmentIndex += 1
+        raceSegmentStartDistanceM = currentTotalDistM
+        raceSegmentStartElapsedSec = currentElapsedSec
     }
 
     private fun paceOrNull(distM: Double, timeSec: Int): Int? {
@@ -1796,8 +2008,16 @@ class WorkoutForegroundService : Service() {
         
         // Р§РёС‚Р°РµРј С†РµР»Рё
         val goal = loadActiveGoal()
-        val targetDistanceKm = goal.targetDistanceKm?.takeIf { it > 0f }
-        val targetTimeSec = goal.targetTimeSec?.takeIf { it > 0 }
+        val targetDistanceKm = when (goal.workoutMode) {
+            RACE_MODE -> racePlan?.totalDistanceKm?.toFloat()
+            else -> goal.targetDistanceKm?.takeIf { it > 0f }
+        }
+        val targetTimeSec = when (goal.workoutMode) {
+            RACE_MODE -> racePlan?.let { plan ->
+                plan.segments.sumOf { segment -> (segment.distanceKm * segment.targetPaceSecPerKm).toInt() }
+            }
+            else -> goal.targetTimeSec?.takeIf { it > 0 }
+        }
         val targetPaceSecPerKm = goal.targetPaceSecPerKm?.takeIf { it > 0 }
         val workoutModeInt = goal.workoutMode
         val goalLabel = buildGoalLabel(goal)
@@ -1813,6 +2033,8 @@ class WorkoutForegroundService : Service() {
         val mode = when {
             workoutModeInt == 1 -> "interval"
             workoutModeInt == 2 -> "combined"
+            workoutModeInt == FREE_RUN_MODE -> FREE_RUN_HISTORY_MODE
+            workoutModeInt == RACE_MODE -> RACE_HISTORY_MODE
             avgWork != null || avgRest != null -> "interval"
             else -> "normal"
         }
@@ -1842,6 +2064,8 @@ class WorkoutForegroundService : Service() {
         return when (goal.workoutMode) {
             1 -> buildIntervalGoalLabel(goal.intervalScenarioJson)
             2 -> buildComboGoalLabel(goal.comboScenarioJson)
+            FREE_RUN_MODE -> "Свободный бег"
+            RACE_MODE -> RacePlanText.buildGoalLabel(goal.racePlanJson)
             else -> buildNormalGoalLabel(goal)
         }
     }

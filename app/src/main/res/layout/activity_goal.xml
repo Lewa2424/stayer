@@ -386,6 +386,109 @@
                 android:layout_marginTop="8dp"/>
         </LinearLayout>
 
+        <!-- Блок для свободного бега -->
+        <LinearLayout
+            android:id="@+id/blockFree"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone"
+            android:layout_marginTop="16dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Свободный бег"
+                android:textSize="18sp"
+                android:textStyle="bold"/>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Во время тренировки приложение будет озвучивать каждый полный километр: дистанцию, общее время и средний темп за всю тренировку."
+                android:textSize="14sp"/>
+
+            <Button
+                android:id="@+id/btnSaveFree"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="Сохранить свободный бег"/>
+
+            <TextView
+                android:id="@+id/tvFreeSummary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text=""
+                android:textColor="#4CAF50"
+                android:textSize="16sp"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/blockRace"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="План забега"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <EditText
+                android:id="@+id/etRaceTotalDistance"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="8dp"
+                android:digits="0123456789.,"
+                android:hint="Общая дистанция, например 5.00"
+                android:inputType="numberDecimal|numberSigned"
+                android:textSize="14sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="Участки"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvRaceSegments"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:nestedScrollingEnabled="false" />
+
+            <Button
+                android:id="@+id/btnAddRaceSegment"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="+ Добавить участок" />
+
+            <TextView
+                android:id="@+id/tvRaceSummary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text=""
+                android:textSize="14sp" />
+
+            <Button
+                android:id="@+id/btnSaveRace"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Сохранить забег" />
+        </LinearLayout>
+
         <!-- Тип локации (влияет на точность GPS) -->
         <TextView
             android:layout_width="wrap_content"

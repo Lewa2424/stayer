@@ -66,10 +66,19 @@ Stayer автоматически запоминает длину вашего �
     <string name="info_close">Закрыть</string>
     <string name="setup_check_button">Проверить настройки</string>
 
-    <string-array name="workout_modes">
+    <string-array name="workout_modes_legacy">
         <item>Обычная</item>
         <item>Интервальная</item>
         <item>Комбинированная</item>
+        <item>Свободный бег</item>
+    </string-array>
+
+    <string-array name="workout_modes">
+        <item>РћР±С‹С‡РЅР°СЏ</item>
+        <item>РРЅС‚РµСЂРІР°Р»СЊРЅР°СЏ</item>
+        <item>РљРѕРјР±РёРЅРёСЂРѕРІР°РЅРЅР°СЏ</item>
+        <item>РЎРІРѕР±РѕРґРЅС‹Р№ Р±РµРі</item>
+        <item>Р—Р°Р±РµРі</item>
     </string-array>
 
     <string-array name="combo_block_types">

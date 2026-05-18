@@ -13,7 +13,7 @@ data class WorkoutSummarySnapshot(
     val distanceKm: Float,
     val elapsedMs: Long,
     val speedKmh: Float,
-    val workoutMode: String,              // "normal" | "interval" | "combined"
+    val workoutMode: String,              // "normal" | "interval" | "combined" | "free" | "race"
     val normalGoalMode: Int? = null,
     val goalLabel: String? = null,
     val targetDistanceKm: Float?,

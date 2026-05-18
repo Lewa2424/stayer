@@ -30,6 +30,12 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import com.example.stayer.modes.free.FREE_RUN_MODE
+import com.example.stayer.modes.race.RACE_MODE
+import com.example.stayer.modes.race.RacePlan
+import com.example.stayer.modes.race.RacePlanText
+import com.example.stayer.modes.race.RacePlanValidator
+import com.example.stayer.modes.race.RaceSegmentPlan
 
 data class Segment(
     val type: String,          // "WARMUP","WORK","REST","COOLDOWN","PACE"
@@ -52,7 +58,7 @@ class GoalActivity : AppCompatActivity() {
     companion object {
         private const val PREFS_GOALS = "Goals"
         
-        private const val WORKOUT_MODE = "WORKOUT_MODE" // 0=normal, 1=interval, 2=combo
+        private const val WORKOUT_MODE = "WORKOUT_MODE" // 0=normal, 1=interval, 2=combo, 3=free, 4=race
         
         // Normal goal mode
         private const val NORMAL_GOAL_MODE = "NORMAL_GOAL_MODE" // 0=time, 1=pace
@@ -64,6 +70,7 @@ class GoalActivity : AppCompatActivity() {
         // Interval scenario stored as JSON
         private const val INTERVAL_SCENARIO_JSON = "INTERVAL_SCENARIO_JSON"
         private const val COMBO_SCENARIO_JSON = "COMBO_SCENARIO_JSON"
+        private const val RACE_PLAN_JSON = "RACE_PLAN_JSON"
 
         // Location type: 0=stadium (smoothing ON), 1=park (smoothing OFF)
         const val LOCATION_TYPE = "LOCATION_TYPE"
@@ -125,12 +132,16 @@ class GoalActivity : AppCompatActivity() {
         val blockNormal = findViewById<View>(R.id.blockNormal)
         val blockInterval = findViewById<View>(R.id.blockInterval)
         val blockCombo = findViewById<View>(R.id.blockCombo)
+        val blockFree = findViewById<View>(R.id.blockFree)
+        val blockRace = findViewById<View>(R.id.blockRace)
 
         // Функция для применения режима
         fun applyMode(mode: Int) {
             blockNormal.visibility = if (mode == 0) View.VISIBLE else View.GONE
             blockInterval.visibility = if (mode == 1) View.VISIBLE else View.GONE
             blockCombo.visibility = if (mode == 2) View.VISIBLE else View.GONE
+            blockFree.visibility = if (mode == FREE_RUN_MODE) View.VISIBLE else View.GONE
+            blockRace.visibility = if (mode == RACE_MODE) View.VISIBLE else View.GONE
         }
 
         // Восстановить сохранённый выбор
@@ -332,6 +343,63 @@ class GoalActivity : AppCompatActivity() {
             Toast.makeText(this, "Комбинированная сохранена", Toast.LENGTH_SHORT).show()
         }
 
+        val btnSaveFree = findViewById<Button>(R.id.btnSaveFree)
+        val tvFreeSummary = findViewById<TextView>(R.id.tvFreeSummary)
+
+        btnSaveFree.setOnClickListener {
+            WorkoutGoalStore.save(
+                prefs,
+                ActiveWorkoutGoal(workoutMode = FREE_RUN_MODE)
+            )
+            tvFreeSummary.setTextColor(0xFF4CAF50.toInt())
+            tvFreeSummary.text = "✓ Сохранено. Озвучка будет на каждом полном километре."
+            Toast.makeText(this, "Свободный бег сохранён", Toast.LENGTH_SHORT).show()
+        }
+
+        val etRaceTotalDistance = findViewById<EditText>(R.id.etRaceTotalDistance)
+        val rvRaceSegments = findViewById<RecyclerView>(R.id.rvRaceSegments)
+        val btnAddRaceSegment = findViewById<Button>(R.id.btnAddRaceSegment)
+        val btnSaveRace = findViewById<Button>(R.id.btnSaveRace)
+        val tvRaceSummary = findViewById<TextView>(R.id.tvRaceSummary)
+
+        val raceSegments = mutableListOf<RaceSegmentPlan>()
+        val raceAdapter = RaceSegmentAdapter(raceSegments) {
+            updateRaceSummary(tvRaceSummary, etRaceTotalDistance.text.toString(), raceSegments)
+        }
+        rvRaceSegments.layoutManager = LinearLayoutManager(this)
+        rvRaceSegments.adapter = raceAdapter
+
+        btnAddRaceSegment.setOnClickListener {
+            raceAdapter.addSegment(RaceSegmentPlan(distanceKm = 1.0, targetPaceSecPerKm = 300))
+        }
+
+        btnSaveRace.setOnClickListener {
+            val totalDistanceKm = etRaceTotalDistance.text.toString().trim().replace(',', '.').toDoubleOrNull() ?: 0.0
+            val segments = raceAdapter.getSegments()
+            val validationError = RacePlanValidator.validate(totalDistanceKm, segments)
+            if (validationError != null) {
+                tvRaceSummary.setTextColor(0xFFF44336.toInt())
+                tvRaceSummary.text = validationError
+                return@setOnClickListener
+            }
+
+            val racePlan = RacePlan(
+                totalDistanceKm = totalDistanceKm,
+                segments = segments
+            )
+            WorkoutGoalStore.save(
+                prefs,
+                ActiveWorkoutGoal(
+                    workoutMode = RACE_MODE,
+                    racePlanJson = gson.toJson(racePlan)
+                )
+            )
+
+            tvRaceSummary.setTextColor(0xFF4CAF50.toInt())
+            updateRaceSummary(tvRaceSummary, etRaceTotalDistance.text.toString(), segments, saved = true)
+            Toast.makeText(this, "Забег сохранён", Toast.LENGTH_SHORT).show()
+        }
+
         // === Location type (Stadium / Park) ===
         val rgLocationType = findViewById<RadioGroup>(R.id.rgLocationType)
         val savedLocationType = prefs.getInt(LOCATION_TYPE, 0)
@@ -412,6 +480,31 @@ class GoalActivity : AppCompatActivity() {
                     updateComboSummary(tvSummary, combo.blocks, saved = true)
                 }
             } catch (_: Exception) { /* ignore corrupted data */ }
+        }
+
+        val raceJson = prefs.getString(RACE_PLAN_JSON, null)
+        if (activeMode == RACE_MODE && !raceJson.isNullOrBlank()) {
+            try {
+                val racePlan = Gson().fromJson(raceJson, RacePlan::class.java)
+                if (racePlan != null && racePlan.segments.isNotEmpty()) {
+                    findViewById<EditText>(R.id.etRaceTotalDistance)
+                        .setText(String.format("%.2f", racePlan.totalDistanceKm))
+                    val rv = findViewById<RecyclerView>(R.id.rvRaceSegments)
+                    val adapter = rv.adapter as? RaceSegmentAdapter
+                    if (adapter != null) {
+                        for (segment in racePlan.segments) adapter.addSegment(segment)
+                    }
+                    val tvSummary = findViewById<TextView>(R.id.tvRaceSummary)
+                    tvSummary.setTextColor(0xFF4CAF50.toInt())
+                    updateRaceSummary(tvSummary, racePlan.totalDistanceKm.toString(), racePlan.segments, saved = true)
+                }
+            } catch (_: Exception) { /* ignore corrupted data */ }
+        }
+
+        if (activeMode == FREE_RUN_MODE) {
+            val tvSummary = findViewById<TextView>(R.id.tvFreeSummary)
+            tvSummary.setTextColor(0xFF4CAF50.toInt())
+            tvSummary.text = "✓ Активен режим свободного бега."
         }
     }
 
@@ -593,5 +686,23 @@ class GoalActivity : AppCompatActivity() {
 
         val timeStr = formatTime(totalSec)
         tv.text = "${prefix}Блоков: ${blocks.size}, ~${String.format("%.1f", totalDist)} км, ~$timeStr\n${parts.joinToString(" → ")}"
+    }
+    private fun updateRaceSummary(
+        tv: TextView,
+        totalDistanceText: String,
+        segments: List<RaceSegmentPlan>,
+        saved: Boolean = false
+    ) {
+        if (segments.isEmpty()) {
+            tv.text = ""
+            return
+        }
+
+        val totalDistanceKm = totalDistanceText.trim().replace(',', '.').toDoubleOrNull() ?: 0.0
+        val prefix = if (saved) "\u2713 Сохранено. " else ""
+        val parts = segments.map { segment ->
+            "${String.format("%.1f", segment.distanceKm)}км(${formatPace(segment.targetPaceSecPerKm)})"
+        }
+        tv.text = "${prefix}${String.format("%.1f", totalDistanceKm)} км, участков: ${segments.size}\n${parts.joinToString(" → ")}"
     }
 }

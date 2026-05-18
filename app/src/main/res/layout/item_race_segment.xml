@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="8dp"
+    android:gravity="center_vertical"
+    android:orientation="horizontal">
+
+    <EditText
+        android:id="@+id/etRaceSegmentDistance"
+        android:layout_width="0dp"
+        android:layout_height="48dp"
+        android:layout_weight="1"
+        android:digits="0123456789.,"
+        android:hint="Участок, км"
+        android:inputType="numberDecimal|numberSigned"
+        android:paddingHorizontal="12dp"
+        android:textSize="14sp" />
+
+    <EditText
+        android:id="@+id/etRaceSegmentPace"
+        android:layout_width="0dp"
+        android:layout_height="48dp"
+        android:layout_marginStart="8dp"
+        android:layout_weight="1"
+        android:digits="0123456789:"
+        android:hint="Темп MM:SS"
+        android:inputType="textNoSuggestions"
+        android:paddingHorizontal="12dp"
+        android:textSize="14sp" />
+
+    <ImageButton
+        android:id="@+id/btnDeleteRaceSegment"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_marginStart="8dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="Удалить участок"
+        android:src="@android:drawable/ic_menu_delete" />
+
+</LinearLayout>

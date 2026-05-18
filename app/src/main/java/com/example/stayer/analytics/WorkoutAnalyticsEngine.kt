@@ -1,8 +1,6 @@
 package com.example.stayer.analytics
 
 import com.example.stayer.WorkoutHistory
-import com.example.stayer.WorkoutHistoryCheckpoint
-import com.example.stayer.WorkoutHistorySegment
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -29,7 +27,9 @@ class WorkoutAnalyticsEngine {
 
         val testCount = filtered.count { it.isTest }
         val totalDistanceKm = filtered.sumOf { it.distance.toDouble() }.toFloat()
-        val totalTimeSec = filtered.sumOf { ((it.elapsedMs.takeIf { value -> value > 0 } ?: parseTimeToSec(it.time) * 1000L) / 1000L).toInt() }
+        val totalTimeSec = filtered.sumOf {
+            ((it.elapsedMs.takeIf { value -> value > 0 } ?: parseTimeToSec(it.time) * 1000L) / 1000L).toInt()
+        }
 
         if (filtered.size < 2) {
             return WorkoutAnalyticsReport(
@@ -51,6 +51,7 @@ class WorkoutAnalyticsEngine {
             AnalyticsMode.NORMAL -> buildNormalReport(filtered, period, testCount, totalDistanceKm, totalTimeSec)
             AnalyticsMode.INTERVAL -> buildIntervalReport(filtered, period, testCount, totalDistanceKm, totalTimeSec)
             AnalyticsMode.COMBINED -> buildCombinedReport(filtered, period, testCount, totalDistanceKm, totalTimeSec)
+            AnalyticsMode.RACE -> buildRaceReport(filtered, period, testCount, totalDistanceKm, totalTimeSec)
         }
     }
 
@@ -63,6 +64,7 @@ class WorkoutAnalyticsEngine {
             AnalyticsMode.NORMAL -> workout.workoutMode == "normal"
             AnalyticsMode.INTERVAL -> workout.workoutMode == "interval"
             AnalyticsMode.COMBINED -> workout.workoutMode == "combined"
+            AnalyticsMode.RACE -> workout.workoutMode == "race"
         }
     }
 
@@ -79,12 +81,10 @@ class WorkoutAnalyticsEngine {
     }
 
     /**
-     * Возвращает timestamp записи, используя дату как fallback для старых записей.
-     * Resolves entry timestamp using stored date as fallback for legacy records.
+     * Возвращает timestamp записи.
+     * Resolves stored entry timestamp.
      */
-    private fun resolveTimestamp(workout: WorkoutHistory): Long {
-        return workout.timestamp
-    }
+    private fun resolveTimestamp(workout: WorkoutHistory): Long = workout.timestamp
 
     /**
      * Строит отчёт по обычным тренировкам.
@@ -147,9 +147,9 @@ class WorkoutAnalyticsEngine {
         if (checkpoints.isEmpty()) {
             regressions += "Для части записей нет деталей чекпоинтов, поэтому оценка стабильности по дистанции ограничена."
         } else if (averageCheckpointDelta >= 10) {
-            improvements += "Чекпоинты в среднем проходят с запасом относительно цели."
+            improvements += "Чекпоинты в среднем проходятся с запасом относительно цели."
         } else if (averageCheckpointDelta <= -10) {
-            regressions += "Чекпоинты в среднем проходят медленнее цели."
+            regressions += "Чекпоинты в среднем проходятся медленнее цели."
         }
 
         if (focusPoints.isEmpty()) {
@@ -197,6 +197,7 @@ class WorkoutAnalyticsEngine {
                 insufficientDataMessage = "Для интервальной аналитики нужно минимум 2 тренировки с сохранёнными участками."
             )
         }
+
         val averagePace = workouts.map { it.averagePaceSecPerKm }.average().roundToInt()
         val bestPace = workouts.minOf { it.bestSegmentPaceSecPerKm }
         val worstPace = workouts.maxOf { it.worstSegmentPaceSecPerKm }
@@ -250,7 +251,7 @@ class WorkoutAnalyticsEngine {
     }
 
     /**
-     * Строит отчёт по комбинированным тренировкам.
+     * Строит отчёт по комбо-тренировкам.
      * Builds report for combined workouts.
      */
     private fun buildCombinedReport(
@@ -335,6 +336,99 @@ class WorkoutAnalyticsEngine {
     }
 
     /**
+     * Строит отчёт по режиму "Забег".
+     * Builds report for race workouts.
+     */
+    private fun buildRaceReport(
+        history: List<WorkoutHistory>,
+        period: AnalyticsPeriod,
+        testCount: Int,
+        totalDistanceKm: Float,
+        totalTimeSec: Int
+    ): WorkoutAnalyticsReport {
+        val workouts = history.mapNotNull(::toRaceWorkoutMetrics)
+        if (workouts.isEmpty()) {
+            return WorkoutAnalyticsReport(
+                mode = AnalyticsMode.RACE,
+                period = period,
+                workoutsCount = history.size,
+                testWorkoutsCount = testCount,
+                totalDistanceKm = totalDistanceKm,
+                totalTimeSec = totalTimeSec,
+                metrics = emptyList(),
+                improvements = emptyList(),
+                regressions = emptyList(),
+                focusPoints = emptyList(),
+                insufficientDataMessage = "Для аналитики забега нужны записи с сохранёнными участками плана."
+            )
+        }
+
+        val workoutPaces = history.mapNotNull(::actualWorkoutPace)
+        val allSegmentPaces = workouts.flatMap { it.segmentPaces }
+        val allPlanDeltas = workouts.flatMap { it.planDeltas }
+        val overallAveragePace = if (workoutPaces.isNotEmpty()) workoutPaces.average().roundToInt() else 0
+        val averageSegmentPace = if (allSegmentPaces.isNotEmpty()) allSegmentPaces.average().roundToInt() else 0
+        val bestSegmentPace = allSegmentPaces.minOrNull() ?: 0
+        val worstSegmentPace = allSegmentPaces.maxOrNull() ?: 0
+        val averagePlanDelta = if (allPlanDeltas.isNotEmpty()) allPlanDeltas.average().roundToInt() else 0
+        val firstPace = workoutPaces.firstOrNull() ?: 0
+        val lastPace = workoutPaces.lastOrNull() ?: 0
+        val paceTrend = if (firstPace > 0 && lastPace > 0) lastPace - firstPace else 0
+        val weakestSegmentIndex = detectWeakestRaceSegmentIndex(history)
+
+        val metrics = buildList {
+            add(AnalyticsMetric("Тренировок", history.size.toString()))
+            add(AnalyticsMetric("Тестовых записей", testCount.toString()))
+            add(AnalyticsMetric("Суммарная дистанция", formatDistance(totalDistanceKm)))
+            add(AnalyticsMetric("Суммарное время", formatClock(totalTimeSec)))
+            add(AnalyticsMetric("Средний темп забега", formatPace(overallAveragePace)))
+            add(AnalyticsMetric("Средний темп участков", formatPace(averageSegmentPace)))
+            add(AnalyticsMetric("Лучший участок", formatPace(bestSegmentPace)))
+            add(AnalyticsMetric("Худший участок", formatPace(worstSegmentPace)))
+            if (allPlanDeltas.isNotEmpty()) {
+                add(AnalyticsMetric("Среднее отклонение от плана", formatSignedPace(averagePlanDelta)))
+            }
+        }
+
+        val improvements = mutableListOf<String>()
+        val regressions = mutableListOf<String>()
+        val focusPoints = mutableListOf<String>()
+
+        when {
+            paceTrend <= -10 -> improvements += "Средний темп забега улучшился по сравнению с первой записью периода."
+            paceTrend >= 10 -> regressions += "Средний темп забега сейчас медленнее, чем в начале периода."
+        }
+
+        if (allPlanDeltas.isNotEmpty()) {
+            when {
+                averagePlanDelta >= 10 -> improvements += "План по участкам в среднем выполняется с запасом."
+                averagePlanDelta <= -10 -> regressions += "План по участкам в среднем пока удерживается хуже цели."
+            }
+        } else {
+            regressions += "Часть записей забега сохранена без целевых темпов по участкам, поэтому сравнение с планом ограничено."
+        }
+
+        if (weakestSegmentIndex != null) {
+            focusPoints += "Чаще всего слабее держится участок ${weakestSegmentIndex + 1}. Его стоит отдельно контролировать в следующих забегах."
+        } else {
+            focusPoints += "Накопите ещё записи забега с деталями участков, чтобы выделить самый нестабильный участок."
+        }
+
+        return WorkoutAnalyticsReport(
+            mode = AnalyticsMode.RACE,
+            period = period,
+            workoutsCount = history.size,
+            testWorkoutsCount = testCount,
+            totalDistanceKm = totalDistanceKm,
+            totalTimeSec = totalTimeSec,
+            metrics = metrics,
+            improvements = improvements,
+            regressions = regressions,
+            focusPoints = focusPoints
+        )
+    }
+
+    /**
      * Определяет примерную слабую фазу обычной тренировки по чекпоинтам.
      * Detects approximate weak phase of a normal run from checkpoint deltas.
      */
@@ -382,6 +476,27 @@ class WorkoutAnalyticsEngine {
     }
 
     /**
+     * Определяет номер самого слабого участка забега по отклонению от плана.
+     * Detects weakest race segment index by average plan deviation.
+     */
+    private fun detectWeakestRaceSegmentIndex(history: List<WorkoutHistory>): Int? {
+        val grouped = mutableMapOf<Int, MutableList<Int>>()
+        history.forEach { workout ->
+            workout.segmentDetails.orEmpty()
+                .filter { it.type == "RACE" && it.actualPaceSecPerKm != null && it.targetPaceSecPerKm != null }
+                .forEachIndexed { index, segment ->
+                    val target = segment.targetPaceSecPerKm ?: return@forEachIndexed
+                    val actual = segment.actualPaceSecPerKm ?: return@forEachIndexed
+                    grouped.getOrPut(index) { mutableListOf() }.add(target - actual)
+                }
+        }
+        return grouped
+            .filterValues { it.isNotEmpty() }
+            .minByOrNull { (_, deltas) -> deltas.average() }
+            ?.key
+    }
+
+    /**
      * Преобразует интервальную тренировку в набор метрик по её work-участкам.
      * Converts interval workout into metrics for its work segments.
      */
@@ -395,6 +510,26 @@ class WorkoutAnalyticsEngine {
             bestSegmentPaceSecPerKm = paces.min(),
             worstSegmentPaceSecPerKm = paces.max(),
             lastMinusFirstSec = paces.last() - paces.first()
+        )
+    }
+
+    /**
+     * Преобразует запись забега в набор метрик по участкам.
+     * Converts race workout into metrics for its stored plan segments.
+     */
+    private fun toRaceWorkoutMetrics(workout: WorkoutHistory): RaceWorkoutMetrics? {
+        val segments = workout.segmentDetails.orEmpty()
+            .filter { it.type == "RACE" && it.actualPaceSecPerKm != null }
+        if (segments.isEmpty()) return null
+        val paces = segments.mapNotNull { it.actualPaceSecPerKm }
+        val planDeltas = segments.mapNotNull { segment ->
+            val target = segment.targetPaceSecPerKm ?: return@mapNotNull null
+            val actual = segment.actualPaceSecPerKm ?: return@mapNotNull null
+            target - actual
+        }
+        return RaceWorkoutMetrics(
+            segmentPaces = paces,
+            planDeltas = planDeltas
         )
     }
 
@@ -426,6 +561,15 @@ class WorkoutAnalyticsEngine {
      */
     private fun actualTimeSec(workout: WorkoutHistory): Int {
         return ((workout.elapsedMs.takeIf { it > 0 } ?: parseTimeToSec(workout.time) * 1000L) / 1000L).toInt()
+    }
+
+    /**
+     * Возвращает средний фактический темп тренировки.
+     * Returns actual average pace of the workout.
+     */
+    private fun actualWorkoutPace(workout: WorkoutHistory): Int? {
+        val distance = workout.distance.takeIf { it > 0f } ?: return null
+        return (actualTimeSec(workout) / distance).roundToInt()
     }
 
     /**
@@ -492,6 +636,23 @@ class WorkoutAnalyticsEngine {
             "$sign${formatClock(abs(deltaSec))}"
         }
     }
+
+    /**
+     * Форматирует signed-отклонение темпом.
+     * Formats signed pace delta.
+     */
+    private fun formatSignedPace(deltaSec: Int): String {
+        val sign = when {
+            deltaSec > 0 -> "+"
+            deltaSec < 0 -> "-"
+            else -> "±"
+        }
+        return if (deltaSec == 0) {
+            "±00:00/км"
+        } else {
+            "$sign${formatPace(abs(deltaSec))}"
+        }
+    }
 }
 
 private data class IntervalWorkoutMetrics(
@@ -499,4 +660,9 @@ private data class IntervalWorkoutMetrics(
     val bestSegmentPaceSecPerKm: Int,
     val worstSegmentPaceSecPerKm: Int,
     val lastMinusFirstSec: Int
+)
+
+private data class RaceWorkoutMetrics(
+    val segmentPaces: List<Int>,
+    val planDeltas: List<Int>
 )

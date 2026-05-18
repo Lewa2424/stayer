@@ -44,6 +44,7 @@ import androidx.compose.material.icons.outlined.QueryStats
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material.icons.outlined.Calculate
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -127,6 +128,7 @@ fun MainScreen(
     onHistoryClick: () -> Unit,
     onAnalyticsClick: () -> Unit,
     onSettingsClick: () -> Unit,
+    onPaceCalculatorClick: () -> Unit,
     onGoalClick: () -> Unit,
     onPrimaryClick: () -> Unit,
     onStopAndReset: () -> Unit,
@@ -233,6 +235,26 @@ fun GpsStatusBadge(gpsStatus: MainActivity.GpsStatus) {
                 .padding(contentPadding)
         ) {
             // Активные кнопки мельче, расположены колонной сверху вниз (с правой стороны)
+            Column(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(top = 8.dp, start = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                IconButton(
+                    onClick = onPaceCalculatorClick,
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Calculate,
+                        contentDescription = "Калькулятор темпа",
+                        modifier = Modifier.size(24.dp),
+                        tint = softAccentMain
+                    )
+                }
+            }
+
             Column(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
@@ -760,6 +782,7 @@ private fun StatsPanel(
                     val modeLabel = when (workoutMode) {
                         1 -> "\u26A1 \u0418\u043D\u0442\u0435\u0440\u0432\u0430\u043B\u044C\u043D\u0430\u044F"
                         2 -> "\uD83C\uDFAF \u041A\u043E\u043C\u0431\u0438\u043D\u0438\u0440\u043E\u0432\u0430\u043D\u043D\u0430\u044F"
+                        4 -> "\uD83C\uDFC1 \u0417\u0430\u0431\u0435\u0433"
                         else -> ""
                     }
 
@@ -983,6 +1006,7 @@ private fun StatTile(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             if (!actionLabel.isNullOrBlank()) {
+                val compactGoalTitle = value.length > 12
                 // Action-layout (только для Goal tile): "value     >" / supporting / "label · action"
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -991,11 +1015,16 @@ private fun StatTile(
                 ) {
                     Text(
                         text = value,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 8.dp),
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.Bold,
-                            fontSize = 24.sp
+                            fontSize = if (compactGoalTitle) 18.sp else 24.sp,
+                            lineHeight = if (compactGoalTitle) 20.sp else 28.sp
                         ),
-                        color = Color(0xFF2F243D) // soft text primary
+                        color = Color(0xFF2F243D), // soft text primary
+                        maxLines = 2
                     )
                     if (showChevron) {
                         Icon(

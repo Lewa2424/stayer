@@ -34,6 +34,9 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import com.example.stayer.history.WorkoutHistoryRepository
+import com.example.stayer.modes.race.RACE_MODE
+import com.example.stayer.modes.race.RacePlanText
+import com.example.stayer.modes.race.raceLabel
 import com.example.stayer.ui.main.MainScreen
 import com.example.stayer.ui.main.SetupChecklistScreen
 import com.example.stayer.ui.theme.StayerTheme
@@ -341,6 +344,10 @@ class MainActivity : AppCompatActivity() {
                             writeLog("USER_ACTION: Settings icon pressed")
                             startActivity(Intent(this, SettingsActivity::class.java))
                         },
+                        onPaceCalculatorClick = {
+                            writeLog("USER_ACTION: Pace calculator icon pressed")
+                            startActivity(Intent(this, PaceCalculatorActivity::class.java))
+                        },
                         onGoalClick = {
                             writeLog("USER_ACTION: Goal tile pressed")
                             startActivity(Intent(this, GoalActivity::class.java))
@@ -619,6 +626,10 @@ class MainActivity : AppCompatActivity() {
             2 -> {
                 uiGoalValue = "Комбо"
                 uiGoalSupporting = buildComboGoalSummary(goal.comboScenarioJson)
+            }
+            RACE_MODE -> {
+                uiGoalValue = raceLabel()
+                uiGoalSupporting = RacePlanText.buildSummary(goal.racePlanJson)
             }
             else -> {
                 uiGoalValue = goal.targetDistanceKm

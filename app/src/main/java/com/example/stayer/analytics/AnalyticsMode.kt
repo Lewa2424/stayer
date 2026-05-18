@@ -9,5 +9,6 @@ enum class AnalyticsMode(
 ) {
     NORMAL("Обычная"),
     INTERVAL("Интервальная"),
-    COMBINED("Комбо")
+    COMBINED("Комбо"),
+    RACE("Забег")
 }

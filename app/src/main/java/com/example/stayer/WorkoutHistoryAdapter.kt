@@ -18,6 +18,7 @@ import com.example.stayer.history.WorkoutHistoryRepository
 import com.example.stayer.history.WorkoutPaceChartPoint
 import com.example.stayer.history.WorkoutPaceChartView
 import java.util.Locale
+import kotlin.math.abs
 
 class WorkoutHistoryAdapter(
     private val context: Context,
@@ -62,13 +63,12 @@ class WorkoutHistoryAdapter(
 
     private fun formatSignedClockDelta(deltaSec: Int): String {
         val sign = if (deltaSec > 0) "+" else "−"
-        val abs = kotlin.math.abs(deltaSec)
-        return "$sign${formatClock(abs)}"
+        return "$sign${formatClock(abs(deltaSec))}"
     }
 
     private fun formatSignedPaceDelta(deltaSec: Int): String {
         val sign = if (deltaSec > 0) "+" else "−"
-        return "$sign${formatSecPerKm(kotlin.math.abs(deltaSec))}"
+        return "$sign${formatSecPerKm(abs(deltaSec))}"
     }
 
     private fun saveHistoryList(list: List<WorkoutHistory>) {
@@ -81,16 +81,7 @@ class WorkoutHistoryAdapter(
             deltaSec < 0 -> "−"
             else -> ""
         }
-        return "$sign${formatClock(kotlin.math.abs(deltaSec))}"
-    }
-
-    private fun formatSemanticPaceDelta(deltaSec: Int): String {
-        val sign = when {
-            deltaSec > 0 -> "+"
-            deltaSec < 0 -> "−"
-            else -> ""
-        }
-        return "$sign${formatSecPerKm(kotlin.math.abs(deltaSec))}"
+        return "$sign${formatClock(abs(deltaSec))}"
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): WorkoutViewHolder {
@@ -187,6 +178,7 @@ class WorkoutHistoryAdapter(
             when (workout.workoutMode) {
                 "interval" -> bindIntervalDetails(workout)
                 "combined" -> bindCombinedDetails(workout)
+                "race" -> bindRaceDetails(workout)
                 else -> bindNormalDetails(workout)
             }
         }
@@ -195,7 +187,6 @@ class WorkoutHistoryAdapter(
             addSummaryLine("Фактическая дистанция: ${formatDistance(workout.distance)}")
             addSummaryLine("Фактическое время: ${workout.time}")
             addSummaryLine("Средний темп: ${formatPace(workout.elapsedMs, workout.distance)}")
-            
 
             buildNormalDeviation(workout)?.let {
                 addSummaryLine("Отклонение от цели: $it")
@@ -220,16 +211,22 @@ class WorkoutHistoryAdapter(
             addSummaryLine("Общая дистанция: ${formatDistance(workout.distance)}")
             addSummaryLine("Общее время: ${workout.time}")
             buildSharedTargetPaceLine(workout)?.let { addSummaryLine(it) }
-            
-            
             bindSegments(workout)
         }
 
         private fun bindCombinedDetails(workout: WorkoutHistory) {
             addSummaryLine("Общая дистанция: ${formatDistance(workout.distance)}")
             addSummaryLine("Общее время: ${workout.time}")
-            
-            
+            bindSegments(workout)
+        }
+
+        private fun bindRaceDetails(workout: WorkoutHistory) {
+            addSummaryLine("Общая дистанция: ${formatDistance(workout.distance)}")
+            addSummaryLine("Общее время: ${workout.time}")
+            addSummaryLine("Средний темп: ${formatPace(workout.elapsedMs, workout.distance)}")
+            workout.targetTimeSec?.takeIf { it > 0 }?.let {
+                addSummaryLine("Целевое время: ${formatClock(it)}")
+            }
             bindSegments(workout)
         }
 
@@ -238,9 +235,15 @@ class WorkoutHistoryAdapter(
             if (segments.isNotEmpty()) {
                 segmentsTitle.visibility = View.VISIBLE
                 segmentsContainer.visibility = View.VISIBLE
-                if (workout.workoutMode == "interval") {
-                    addIntervalPaceChart(segments)
-                    addIntervalDeviationBlock(segments)
+                when (workout.workoutMode) {
+                    "interval" -> {
+                        addIntervalPaceChart(segments)
+                        addIntervalDeviationBlock(segments)
+                    }
+                    "race" -> {
+                        addIntervalPaceChart(segments)
+                        addRaceDeviationBlock(segments)
+                    }
                 }
                 segments.forEach { segment ->
                     addSegmentLine(buildSegmentLine(workout, segment))
@@ -261,6 +264,7 @@ class WorkoutHistoryAdapter(
             return when (workout.workoutMode) {
                 "interval" -> buildExpandedIntervalHeader(workout.goalLabel)
                 "combined" -> "Комбо"
+                "race" -> workout.goalLabel?.takeIf { it.isNotBlank() } ?: "Забег"
                 else -> {
                     workout.goalLabel?.takeIf { it.isNotBlank() }?.let { return it }
                     val parts = mutableListOf<String>()
@@ -377,6 +381,23 @@ class WorkoutHistoryAdapter(
             }
         }
 
+        private fun addRaceDeviationBlock(segments: List<WorkoutHistorySegment>) {
+            val deviationSegments = segments.filter { it.type == "RACE" && it.actualPaceSecPerKm != null && it.targetPaceSecPerKm != null }
+            if (deviationSegments.isEmpty()) return
+
+            addSectionTitle("Отклонения от плана")
+            deviationSegments.forEachIndexed { index, segment ->
+                val target = segment.targetPaceSecPerKm ?: return@forEachIndexed
+                val actual = segment.actualPaceSecPerKm ?: return@forEachIndexed
+                val deltaSec = target - actual
+                val label = buildSegmentRange(segment) ?: segment.title
+                val line = makeDeltaTextView(deltaSec).apply {
+                    text = "${index + 1}) $label: ${formatSignedPaceDelta(deltaSec)}"
+                }
+                segmentsContainer.addView(line)
+            }
+        }
+
         private fun addChartBlock(title: String, points: List<WorkoutPaceChartPoint>) {
             if (points.isEmpty()) return
 
@@ -439,6 +460,10 @@ class WorkoutHistoryAdapter(
         }
 
         private fun buildSegmentLine(workout: WorkoutHistory, segment: WorkoutHistorySegment): String {
+            if (workout.workoutMode == "race") {
+                return buildRaceSegmentLine(segment)
+            }
+
             val typeLabel = when {
                 workout.workoutMode == "combined" && segment.type == "PACE" -> "темповый"
                 workout.workoutMode == "combined" && segment.type == "WORK" -> "интервальный"
@@ -454,6 +479,38 @@ class WorkoutHistoryAdapter(
                 append("Дистанция: ")
                 append(formatDistance(segment.distanceKm))
             }
+        }
+
+        private fun buildRaceSegmentLine(segment: WorkoutHistorySegment): String {
+            val rangeText = buildSegmentRange(segment)
+            return buildString {
+                append(segment.title)
+                rangeText?.let {
+                    append('\n')
+                    append("Участок: ")
+                    append(it)
+                }
+                segment.targetPaceSecPerKm?.let {
+                    append('\n')
+                    append("План: ")
+                    append(formatSecPerKm(it))
+                }
+                append('\n')
+                append("Факт: ")
+                append(formatSecPerKm(segment.actualPaceSecPerKm))
+                append('\n')
+                append("Время: ")
+                append(formatClock(segment.durationSec))
+                append('\n')
+                append("Дистанция: ")
+                append(formatDistance(segment.distanceKm))
+            }
+        }
+
+        private fun buildSegmentRange(segment: WorkoutHistorySegment): String? {
+            val fromKm = segment.fromKm ?: return null
+            val toKm = segment.toKm ?: return null
+            return String.format(Locale.getDefault(), "%.2f-%.2f км", fromKm, toKm)
         }
 
         private fun addSummaryLine(text: String, secondary: Boolean = false) {
@@ -494,7 +551,7 @@ class WorkoutHistoryAdapter(
 
         private fun buildExpandedIntervalHeader(goalLabel: String?): String {
             val compact = goalLabel?.trim().orEmpty()
-            val match = Regex("""(\d+)×(\d{2}:\d{2})\s*/\s*(\d{2}:\d{2})""").matchEntire(compact)
+            val match = Regex("""(\d+)[x×хХX](\d{2}:\d{2})\s*/\s*(\d{2}:\d{2})""").matchEntire(compact)
             if (match != null) {
                 val repeats = match.groupValues[1]
                 val work = match.groupValues[2]

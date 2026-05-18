@@ -1,5 +1,10 @@
 package com.example.stayer
 
+import com.example.stayer.modes.free.FREE_RUN_MODE
+import com.example.stayer.modes.free.freeRunLabel
+import com.example.stayer.modes.race.RACE_MODE
+import com.example.stayer.modes.race.RacePlanText
+import com.example.stayer.modes.race.raceLabel
 import com.google.gson.Gson
 import java.util.Locale
 
@@ -19,6 +24,14 @@ object WorkoutGoalText {
                 value = "Комбо",
                 supporting = buildComboGoalSummary(goal.comboScenarioJson)
             )
+            FREE_RUN_MODE -> GoalDisplayText(
+                value = freeRunLabel(),
+                supporting = "Каждый 1 км • время и средний темп"
+            )
+            RACE_MODE -> GoalDisplayText(
+                value = raceLabel(),
+                supporting = RacePlanText.buildSummary(goal.racePlanJson)
+            )
             else -> GoalDisplayText(
                 value = goal.targetDistanceKm
                     ?.takeIf { it > 0f }
@@ -37,6 +50,7 @@ object WorkoutGoalText {
         return when (goal.workoutMode) {
             1 -> buildIntervalPreview(goal.intervalScenarioJson)
             2 -> buildComboPreview(goal.comboScenarioJson)
+            RACE_MODE -> RacePlanText.buildPreview(goal.racePlanJson)
             else -> ""
         }
     }
@@ -45,6 +59,8 @@ object WorkoutGoalText {
         return when (goal.workoutMode) {
             1 -> buildIntervalGoalLabel(goal.intervalScenarioJson)
             2 -> buildComboGoalLabel(goal.comboScenarioJson)
+            FREE_RUN_MODE -> freeRunLabel()
+            RACE_MODE -> RacePlanText.buildGoalLabel(goal.racePlanJson)
             else -> buildNormalGoalLabel(goal)
         }
     }

@@ -11,7 +11,8 @@ data class ActiveWorkoutGoal(
     val targetTimeSec: Int? = null,
     val targetPaceSecPerKm: Int? = null,
     val intervalScenarioJson: String? = null,
-    val comboScenarioJson: String? = null
+    val comboScenarioJson: String? = null,
+    val racePlanJson: String? = null
 )
 
 object WorkoutGoalStore {
@@ -25,6 +26,7 @@ object WorkoutGoalStore {
     private const val KEY_TARGET_PACE_SEC_PER_KM = "TARGET_PACE_SEC_PER_KM"
     private const val KEY_INTERVAL_SCENARIO_JSON = "INTERVAL_SCENARIO_JSON"
     private const val KEY_COMBO_SCENARIO_JSON = "COMBO_SCENARIO_JSON"
+    private const val KEY_RACE_PLAN_JSON = "RACE_PLAN_JSON"
 
     private val gson = Gson()
 
@@ -66,6 +68,10 @@ object WorkoutGoalStore {
                 2 -> {
                     putString(KEY_COMBO_SCENARIO_JSON, goal.comboScenarioJson)
                 }
+                3 -> Unit
+                4 -> {
+                    putString(KEY_RACE_PLAN_JSON, goal.racePlanJson)
+                }
             }
         }
     }
@@ -80,6 +86,13 @@ object WorkoutGoalStore {
             2 -> ActiveWorkoutGoal(
                 workoutMode = 2,
                 comboScenarioJson = prefs.getString(KEY_COMBO_SCENARIO_JSON, null)
+            )
+            3 -> ActiveWorkoutGoal(
+                workoutMode = 3
+            )
+            4 -> ActiveWorkoutGoal(
+                workoutMode = 4,
+                racePlanJson = prefs.getString(KEY_RACE_PLAN_JSON, null)
             )
             else -> {
                 val targetDistanceKm = when {

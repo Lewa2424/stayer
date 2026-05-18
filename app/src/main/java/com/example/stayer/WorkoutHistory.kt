@@ -6,7 +6,9 @@ data class WorkoutHistorySegment(
     val distanceKm: Float,
     val durationSec: Int,
     val actualPaceSecPerKm: Int? = null,
-    val targetPaceSecPerKm: Int? = null
+    val targetPaceSecPerKm: Int? = null,
+    val fromKm: Float? = null,
+    val toKm: Float? = null
 )
 
 data class WorkoutHistory(
@@ -17,7 +19,7 @@ data class WorkoutHistory(
     val elapsedMs: Long = 0L,
     val timestamp: Long = 0L,
     val isTest: Boolean = false,
-    val workoutMode: String = "normal",        // "normal" | "interval" | "combined"
+    val workoutMode: String = "normal",        // "normal" | "interval" | "combined" | "free" | "race"
     val normalGoalMode: Int? = null,
     val goalLabel: String? = null,
     val targetDistanceKm: Float? = null,
