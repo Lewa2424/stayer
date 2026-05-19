@@ -345,6 +345,16 @@ class WorkoutForegroundService : Service() {
             smoother = LocationSmoother(windowSize = if (locationType == 1) 1 else 3)
             writeLog("SMOOTHER: windowSize=${if (locationType == 1) 1 else 3} (locationType=$locationType)")
 
+            if (activeWorkoutModeInt == RACE_MODE) {
+                val startRange = racePlan?.let { RaceProgressEvaluator.activeSegment(it, totalDistanceKm.toDouble()) }
+                if (startRange != null) {
+                    announceRaceStartIfNeeded(
+                        activeRange = startRange,
+                        elapsedSec = (currentElapsedMs() / 1000L).toInt()
+                    )
+                }
+            }
+
         } else if (isPaused) {
             isPaused = false
             if (pausedAtMs > 0L) {
@@ -974,16 +984,7 @@ class WorkoutForegroundService : Service() {
         val elapsedSec = (currentElapsedMs() / 1000L).toInt()
         val activeRange = RaceProgressEvaluator.activeSegment(plan, distanceKm) ?: return
 
-        if (!raceStartedAnnouncementDone) {
-            raceStartedAnnouncementDone = true
-            raceSegmentIndex = activeRange.index
-            raceSegmentStartDistanceM = getTotalDistanceMeters()
-            raceSegmentStartElapsedSec = elapsedSec
-            speak(
-                RaceSpeechFormatter.buildStartSpeech(activeRange),
-                "Забег: старт первого участка ${activeRange.index + 1}"
-            )
-        }
+        announceRaceStartIfNeeded(activeRange, elapsedSec)
 
         if (activeRange.index != raceSegmentIndex) {
             closeRaceSegmentsUpTo(activeRange.index, ranges, elapsedSec)
@@ -1014,6 +1015,21 @@ class WorkoutForegroundService : Service() {
                 "Забег: предупреждение за $remainingKm км до финиша"
             )
         }
+    }
+
+    private fun announceRaceStartIfNeeded(
+        activeRange: RaceSegmentRange,
+        elapsedSec: Int
+    ) {
+        if (raceStartedAnnouncementDone) return
+        raceStartedAnnouncementDone = true
+        raceSegmentIndex = activeRange.index
+        raceSegmentStartDistanceM = getTotalDistanceMeters()
+        raceSegmentStartElapsedSec = elapsedSec
+        speak(
+            RaceSpeechFormatter.buildStartSpeech(activeRange),
+            "Забег: старт первого участка ${activeRange.index + 1}"
+        )
     }
 
     /**

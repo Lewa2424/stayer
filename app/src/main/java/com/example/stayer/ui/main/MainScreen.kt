@@ -87,6 +87,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
 
@@ -310,13 +311,12 @@ fun GpsStatusBadge(gpsStatus: MainActivity.GpsStatus) {
 
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 24.dp),
-                verticalArrangement = Arrangement.Center,
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .padding(top = 8.dp, start = 24.dp, end = 24.dp),
+                verticalArrangement = Arrangement.Top,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Spacer(modifier = Modifier.weight(1f))
-
                 // --- Индикатор GPS ---
                 if (!isRunning) {
                     GpsStatusBadge(gpsStatus = gpsStatus)
@@ -324,22 +324,29 @@ fun GpsStatusBadge(gpsStatus: MainActivity.GpsStatus) {
                     Spacer(modifier = Modifier.height(32.dp)) // Заглушка, чтобы кнопка не прыгала
                 }
                 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 // --- Главная кнопка Старт / Пауза ---
-                BigActionButton(
-                    isRunning = isRunning,
-                    isPaused = isPaused,
-                    onClick = onPrimaryClick,
-                    onLongPress = onStopAndReset
-                )
+                Box(modifier = Modifier.offset(y = (-20).dp)) {
+                    BigActionButton(
+                        isRunning = isRunning,
+                        isPaused = isPaused,
+                        onClick = onPrimaryClick,
+                        onLongPress = onStopAndReset
+                    )
+                }
                 Spacer(Modifier.height(16.dp))
-                Text(
-                    text = "Удерживай для стоп и сохранения",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
+
+            Text(
+                text = "Удерживай для стоп и сохранения",
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = 24.dp, vertical = 12.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
         }
         if (showInfoSheet) {
             ModalBottomSheet(
@@ -645,7 +652,7 @@ private fun BigActionButton(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(260.dp), // Место для лент + кнопка
+            .height(208.dp), // Место для лент + кнопка
         contentAlignment = Alignment.BottomCenter
     ) {
         // Ленточки (сверху кнопки, смещены вверх)
@@ -653,15 +660,15 @@ private fun BigActionButton(
             imageVector = ImageVector.vectorResource(id = R.drawable.ic_medal_ribbons),
             contentDescription = null,
             modifier = Modifier
-                .size(140.dp, 80.dp)
+                .size(112.dp, 64.dp)
                 .align(Alignment.TopCenter)
-                .offset(y = 10.dp) // немного заходят за кнопку
+                .offset(y = 8.dp) // немного заходят за кнопку
         )
 
         // Сама круглая кнопка
         Box(
             modifier = Modifier
-                .size(200.dp)
+                .size(160.dp)
                 .scale(scale)
                 .shadow(
                     elevation = if (pressed) 4.dp else 14.dp, // Имитация boxShadow
@@ -704,25 +711,25 @@ private fun BigActionButton(
             contentAlignment = Alignment.Center
         ) {
             // Содержимое
-            Column(
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Outlined.DirectionsRun,
-                    contentDescription = null,
-                    tint = contentColor,
-                    modifier = Modifier.size(36.dp)
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                    color = contentColor
-                )
+                Column(
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Outlined.DirectionsRun,
+                        contentDescription = null,
+                        tint = contentColor,
+                        modifier = Modifier.size(30.dp)
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                        color = contentColor
+                    )
+                }
             }
         }
-    }
 }
 
 @Composable

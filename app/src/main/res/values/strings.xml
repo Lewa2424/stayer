@@ -74,11 +74,11 @@ Stayer автоматически запоминает длину вашего �
     </string-array>
 
     <string-array name="workout_modes">
-        <item>РћР±С‹С‡РЅР°СЏ</item>
-        <item>РРЅС‚РµСЂРІР°Р»СЊРЅР°СЏ</item>
-        <item>РљРѕРјР±РёРЅРёСЂРѕРІР°РЅРЅР°СЏ</item>
-        <item>РЎРІРѕР±РѕРґРЅС‹Р№ Р±РµРі</item>
-        <item>Р—Р°Р±РµРі</item>
+        <item>Обычная</item>
+        <item>Интервальная</item>
+        <item>Комбинированная</item>
+        <item>Свободный бег</item>
+        <item>Забег</item>
     </string-array>
 
     <string-array name="combo_block_types">
