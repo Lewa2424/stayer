@@ -34,6 +34,9 @@ import com.google.android.gms.location.Priority
 import com.google.gson.Gson
 import com.example.stayer.engine.CadenceFallbackEngine
 import com.example.stayer.engine.CurrentPaceEstimator
+import com.example.stayer.engine.DistanceTick
+import com.example.stayer.engine.PaceCadenceProfileStore
+import com.example.stayer.engine.WorkoutDistanceArbiter
 import com.example.stayer.history.WorkoutHistoryRepository
 import com.example.stayer.modes.free.FREE_RUN_HISTORY_MODE
 import com.example.stayer.modes.free.FREE_RUN_MODE
@@ -47,6 +50,11 @@ import com.example.stayer.modes.race.RacePlanText
 import com.example.stayer.modes.race.RaceProgressEvaluator
 import com.example.stayer.modes.race.RaceSegmentRange
 import com.example.stayer.modes.race.RaceSpeechFormatter
+import com.example.stayer.pathnet.data.PathNetworkRuntimeLoader
+import com.example.stayer.pathnet.data.RoomPathNetworkRepository
+import com.example.stayer.pathnet.data.local.PathNetDatabase
+import com.example.stayer.pathnet.domain.RailMatcher
+import com.example.stayer.pathnet.model.GeoPoint
 import kotlinx.coroutines.*
 import java.io.File
 import java.io.FileWriter
@@ -132,6 +140,14 @@ class WorkoutForegroundService : Service() {
     private var lastSmoothedLocation: Location? = null
     // РЈРјРµРЅСЊС€РµРЅРѕ РѕРєРЅРѕ СЃРіР»Р°Р¶РёРІР°РЅРёСЏ СЃ 7 РґРѕ 3 РґР»СЏ СЃРЅРёР¶РµРЅРёСЏ СЌС„С„РµРєС‚Р° "СЃСЂРµР·Р°РЅРёСЏ СѓРіР»РѕРІ" РЅР° РїРѕРІРѕСЂРѕС‚Р°С…
     private var smoother = LocationSmoother(windowSize = 3)
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val railMatcher = RailMatcher()
+    private var routeFollowEnabled = false
+    private val pathRuntimeLoader by lazy {
+        PathNetworkRuntimeLoader(
+            RoomPathNetworkRepository(PathNetDatabase.getInstance(this).pathNetDao()),
+        )
+    }
 
     private val tickHandler = Handler(Looper.getMainLooper())
     private var tickRunnable: Runnable? = null
@@ -226,7 +242,9 @@ class WorkoutForegroundService : Service() {
     private var lastPacerSpeechTimeMs: Long = 0L
 
     // Fallback Engine (Intelligent Steps Calibration)
+    private lateinit var paceProfileStore: PaceCadenceProfileStore
     private lateinit var fallbackEngine: CadenceFallbackEngine
+    private lateinit var distanceArbiter: WorkoutDistanceArbiter
     private lateinit var sensorManager: SensorManager
     private var stepSensor: Sensor? = null
     private var stepsSinceLastTick = 0
@@ -251,7 +269,9 @@ class WorkoutForegroundService : Service() {
     override fun onCreate() {
         super.onCreate()
 
-        fallbackEngine = CadenceFallbackEngine(this)
+        paceProfileStore = PaceCadenceProfileStore(this)
+        fallbackEngine = CadenceFallbackEngine(paceProfileStore)
+        distanceArbiter = WorkoutDistanceArbiter(railMatcher, fallbackEngine, paceProfileStore)
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         stepSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
 
@@ -263,6 +283,7 @@ class WorkoutForegroundService : Service() {
 
         createNotificationChannel()
         restoreState()
+        refreshPathRailRuntime()
         
         // РљР РРўРР§Р•РЎРљР Р’РђР–РќРћ: РїСЂРѕРІРµСЂСЏРµРј pending snapshot РїСЂРё СЃС‚Р°СЂС‚Рµ
         checkAndRestorePendingSnapshot()
@@ -323,6 +344,10 @@ class WorkoutForegroundService : Service() {
         }
 
         val now = System.currentTimeMillis()
+        val goalPrefs = getSharedPreferences("Goals", MODE_PRIVATE)
+        routeFollowEnabled = goalPrefs.getBoolean(GoalActivity.ROUTE_FOLLOW_ENABLED, false)
+        distanceArbiter.routeFollowEnabled = routeFollowEnabled
+
         if (!isRunning) {
             isRunning = true
             isPaused = false
@@ -340,10 +365,13 @@ class WorkoutForegroundService : Service() {
             loadWorkoutModeAndScenario()
 
             // Apply location type: stadium=smoothing(3), park=no smoothing(1)
-            val goalPrefs = getSharedPreferences("Goals", MODE_PRIVATE)
             val locationType = goalPrefs.getInt(GoalActivity.LOCATION_TYPE, 0)
             smoother = LocationSmoother(windowSize = if (locationType == 1) 1 else 3)
             writeLog("SMOOTHER: windowSize=${if (locationType == 1) 1 else 3} (locationType=$locationType)")
+
+            distanceArbiter.reset()
+            railMatcher.reset()
+            writeLog("ROUTE_FOLLOW: enabled=$routeFollowEnabled")
 
             if (activeWorkoutModeInt == RACE_MODE) {
                 val startRange = racePlan?.let { RaceProgressEvaluator.activeSegment(it, totalDistanceKm.toDouble()) }
@@ -367,12 +395,14 @@ class WorkoutForegroundService : Service() {
             resetTrackState()
 
             paceCorrector.reset()
+            distanceArbiter.resetTimers()
 
         }
 
 
         persistState()
         writeLog("SERVICE_START: after init mode=$activeWorkoutModeInt, startTimeMs=$startTimeMs, segmentIndex=$segmentIndex, lastAnnouncedSegmentIndex=$lastAnnouncedSegmentIndex")
+        refreshPathRailRuntime()
         startLocationUpdates()
         
         stepSensor?.let {
@@ -491,6 +521,8 @@ class WorkoutForegroundService : Service() {
         resetTrackState()
         closeGpxLog()
 
+        distanceArbiter.reset()
+
         sensorManager.unregisterListener(stepListener)
         lastTotalSteps = -1
         stepsSinceLastTick = 0
@@ -512,12 +544,32 @@ class WorkoutForegroundService : Service() {
     private fun resetTrackState() {
         lastAcceptedRawLocation = null
         lastSmoothedLocation = null
+        railMatcher.reset()
         smoother.reset()
         currentPaceEstimator.reset()
         // Reset emergency monitor
         lastEmergencyCheckDistKm = 0.0
         lastCheckpointProgress = com.example.stayer.debug.GlobalProgress.ON_TRACK
         emergencyCooldownUntilDistKm = 0.0
+    }
+
+    /**
+     * Обновляет рельсы маршрута для привязки GPS в фоне.
+     * Refreshes the rail paths used for GPS locking in the background.
+     */
+    private fun refreshPathRailRuntime() {
+        serviceScope.launch {
+            try {
+                val network = withContext(Dispatchers.IO) {
+                    pathRuntimeLoader.loadNetwork()
+                }
+                railMatcher.updateNetwork(network)
+                writeLog("PATHNET: route network loaded, edges=${network.edges.size}")
+            } catch (error: Exception) {
+                railMatcher.updateNetwork(com.example.stayer.pathnet.domain.RailNetwork(emptyList()))
+                writeLog("PATHNET: failed to load route network: ${error.message}")
+            }
+        }
     }
 
     private fun startTicking() {
@@ -533,22 +585,12 @@ class WorkoutForegroundService : Service() {
                     // 1. Process Cadence Fallback (Intelligent Steps)
                     val stepsToProcess = stepsSinceLastTick
                     stepsSinceLastTick = 0
-                    val fallbackDistM = fallbackEngine.processTick(stepsToProcess)
-                    if (fallbackDistM > 0.0) {
-                        totalDistanceKm += (fallbackDistM.toFloat() / 1000f)
-                    }
+                    val stepTick = distanceArbiter.onStepTick(stepsToProcess)
+                    applyDistanceTick(stepTick)
 
-                    // 2. РўР°Р№РјРµСЂ Рё РЅРѕС‚РёС„РёРєР°С†РёСЏ РґРѕР»Р¶РЅС‹ РѕР±РЅРѕРІР»СЏС‚СЊСЃСЏ РЅРµР·Р°РІРёСЃРёРјРѕ РѕС‚ С‡Р°СЃС‚РѕС‚С‹ GPS-С‚РѕС‡РµРє
                     broadcastUpdate()
                     updateNotification()
 
-                    // 3. Pace Corrector: fallback is the source of truth only outside STABLE GPS mode
-                    if (fallbackEngine.currentState != CadenceFallbackEngine.State.STABLE) {
-                        paceCorrector.feedSample(fallbackDistM, 1.0)
-                        currentPaceEstimator.feed(fallbackDistM, 1.0)
-                    }
-
-                    // 4. Normal-mode corrector suggestion
                     maybePaceCorrectorNormal(totalDistanceKm)
                     maybeNotifyFreeRun(totalDistanceKm)
 
@@ -720,56 +762,64 @@ class WorkoutForegroundService : Service() {
     }
 
     private fun stopLocationUpdates() {
-        locationCallback?.let { fusedLocationClient.removeLocationUpdates(it) }
+        writeLog("APP_EXIT_SERVICE: stopLocationUpdates begin hasCallback=${locationCallback != null}")
+        locationCallback?.let {
+            try {
+                fusedLocationClient.removeLocationUpdates(it)
+                writeLog("APP_EXIT_SERVICE: stopLocationUpdates removed callback")
+            } catch (e: Exception) {
+                writeLog("APP_EXIT_SERVICE_ERROR: stopLocationUpdates failed: ${e.javaClass.simpleName}: ${e.message}")
+                android.util.Log.e("WorkoutForegroundService", "stopLocationUpdates failed", e)
+            }
+        }
         locationCallback = null
+        writeLog("APP_EXIT_SERVICE: stopLocationUpdates end")
     }
 
     private fun handleLocation(location: Location) {
         val prev = lastAcceptedRawLocation
+        val smoothed = smoother.addAndGetSmoothed(location)
+        val accuracyMeters = if (location.hasAccuracy()) location.accuracy else Float.MAX_VALUE
+
         if (prev == null) {
             lastAcceptedRawLocation = location
             logGpxPoint(location, null)
-            val smoothed = smoother.addAndGetSmoothed(location)
             lastSmoothedLocation = smoothed
+            val firstTick = distanceArbiter.onFirstGpsPoint(GeoPoint(smoothed.latitude, smoothed.longitude))
+            applyDistanceTick(firstTick)
             paceCorrector.feedGpsPoint(
-                latDeg = smoothed.latitude,
-                lonDeg = smoothed.longitude,
-                elapsedSec = currentElapsedMs() / 1000.0
+                latDeg = firstTick.trackedPoint?.lat ?: smoothed.latitude,
+                lonDeg = firstTick.trackedPoint?.lon ?: smoothed.longitude,
+                elapsedSec = currentElapsedMs() / 1000.0,
             )
             return
         }
 
         val rejectReason = acceptPointReason(prev, location)
         logGpxPoint(location, rejectReason)
+        val deltaTimeSec = ((location.elapsedRealtimeNanos - prev.elapsedRealtimeNanos) / 1_000_000_000.0)
+        val smoothedPoint = GeoPoint(smoothed.latitude, smoothed.longitude)
 
-        if (rejectReason != null) {
-            fallbackEngine.processGpsRejected(rejectReason)
-            // Р•СЃР»Рё С‚РѕС‡РєРё РЅРµ Р±СѓРґРµС‚ 7 СЃРµРєСѓРЅРґ, РґРІРёР¶РѕРє СЃР°Рј РјСЏРіРєРѕ СѓР№РґРµС‚ РІ BLIND С‡РµСЂРµР· ticksSinceLastGps.
-            return
-        }
-
-        lastAcceptedRawLocation = location
-        val smoothed = smoother.addAndGetSmoothed(location)
-        paceCorrector.feedGpsPoint(
-            latDeg = smoothed.latitude,
-            lonDeg = smoothed.longitude,
-            elapsedSec = currentElapsedMs() / 1000.0
-        )
-        val prevSmoothed = lastSmoothedLocation
-        if (prevSmoothed != null) {
-            val rawDeltaM = prevSmoothed.distanceTo(smoothed).toDouble()
-            if (rawDeltaM > 0.0) {
-                val acceptedDistM = fallbackEngine.processGpsAccepted(rawDeltaM)
-                val deltaTimeSec = ((location.elapsedRealtimeNanos - prev.elapsedRealtimeNanos) / 1_000_000_000.0)
-                if (acceptedDistM > 0.0) {
-                    totalDistanceKm += (acceptedDistM.toFloat() / 1000f)
-                    if (fallbackEngine.currentState == CadenceFallbackEngine.State.STABLE && deltaTimeSec > 0.0) {
-                        paceCorrector.feedSample(acceptedDistM, deltaTimeSec)
-                        currentPaceEstimator.feed(acceptedDistM, deltaTimeSec)
-                    }
-                }
+        val tick = if (rejectReason != null) {
+            distanceArbiter.onGpsRejected(smoothedPoint, deltaTimeSec, accuracyMeters)
+        } else {
+            lastAcceptedRawLocation = location
+            val prevSmoothed = lastSmoothedLocation
+            val rawDeltaM = if (prevSmoothed != null) {
+                prevSmoothed.distanceTo(smoothed).toDouble()
+            } else {
+                0.0
             }
+            distanceArbiter.onGpsAccepted(smoothedPoint, rawDeltaM, deltaTimeSec, accuracyMeters)
         }
+
+        applyDistanceTick(tick)
+        val tracked = tick.trackedPoint ?: smoothedPoint
+        paceCorrector.feedGpsPoint(
+            latDeg = tracked.lat,
+            lonDeg = tracked.lon,
+            elapsedSec = currentElapsedMs() / 1000.0,
+        )
         lastSmoothedLocation = smoothed
 
         maybeAutoPauseOnTarget(totalDistanceKm)
@@ -782,6 +832,20 @@ class WorkoutForegroundService : Service() {
         persistState()
         broadcastUpdate()
         updateNotification()
+    }
+
+    /**
+     * Применяет единый тик дистанции от оркестратора.
+     * Applies a single distance tick from the arbiter.
+     */
+    private fun applyDistanceTick(tick: DistanceTick) {
+        if (tick.deltaMeters > 0.0) {
+            totalDistanceKm += (tick.deltaMeters.toFloat() / 1000f)
+        }
+        if (tick.paceFeedMeters > 0.0 && tick.paceFeedSec > 0.0) {
+            paceCorrector.feedSample(tick.paceFeedMeters, tick.paceFeedSec)
+            currentPaceEstimator.feed(tick.paceFeedMeters, tick.paceFeedSec)
+        }
     }
 
     /**
@@ -938,6 +1002,25 @@ class WorkoutForegroundService : Service() {
     private fun isPaceCorrectorEnabled(): Boolean {
         return getSharedPreferences("Goals", MODE_PRIVATE)
             .getBoolean(GoalActivity.PACE_CORRECTOR_ENABLED, true)
+    }
+
+    /**
+     * Короткая подсказка корректировщика темпа (общий движок для WORK / PACE / разминки).
+     * Short pace-corrector hint (shared engine for WORK / PACE / warmup).
+     */
+    private fun maybeSpeakPaceCorrector(
+        targetPaceSecPerKm: Int,
+        elapsedSec: Int,
+        conditionLabel: String,
+    ) {
+        val suggestion = paceCorrector.maybeSuggest(
+            targetPaceSecPerKm = targetPaceSecPerKm,
+            currentTimeMs = System.currentTimeMillis(),
+            currentElapsedSec = elapsedSec.toDouble(),
+        ) ?: return
+        val cond = "Корректировщик темпа ($conditionLabel). Целевой: ${formatPaceShort(targetPaceSecPerKm)}"
+        speak(suggestion, cond)
+        paceCorrector.triggerCooldown(System.currentTimeMillis())
     }
 
     private fun maybeNotifyPace(currentDistanceKm: Float) {
@@ -1278,16 +1361,11 @@ class WorkoutForegroundService : Service() {
 
         // 5) Smart Pace Corrector for WORK segments (replaces old mid-hints)
         if (seg.type == "WORK" && seg.targetPaceSecPerKm != null && remainingSec > 20 && isPaceCorrectorEnabled()) {
-            val suggestion = paceCorrector.maybeSuggest(
+            maybeSpeakPaceCorrector(
                 targetPaceSecPerKm = seg.targetPaceSecPerKm,
-                currentTimeMs = System.currentTimeMillis(),
-                currentElapsedSec = elapsedSec.toDouble()
+                elapsedSec = elapsedSec,
+                conditionLabel = "интервал",
             )
-            if (suggestion != null) {
-                val cond = "Корректировщик темпа (интервал). Целевой: ${formatPaceShort(seg.targetPaceSecPerKm)}"
-                speak(suggestion, cond)
-                paceCorrector.triggerCooldown(System.currentTimeMillis())
-            }
         }
 
         // 5.5) Time-based checkpoints + corrector for WARMUP/COOLDOWN
@@ -1323,16 +1401,26 @@ class WorkoutForegroundService : Service() {
 
             // Corrector between checkpoints
             if (remainingSec > 20 && isPaceCorrectorEnabled()) {
-                val suggestion = paceCorrector.maybeSuggest(
+                maybeSpeakPaceCorrector(
                     targetPaceSecPerKm = seg.targetPaceSecPerKm,
-                    currentTimeMs = System.currentTimeMillis(),
-                    currentElapsedSec = elapsedSec.toDouble()
+                    elapsedSec = elapsedSec,
+                    conditionLabel = seg.type,
                 )
-                if (suggestion != null) {
-                    val cond = "Корректировщик (${seg.type}). Целевой: ${formatPaceShort(seg.targetPaceSecPerKm)}"
-                    speak(suggestion, cond)
-                    paceCorrector.triggerCooldown(System.currentTimeMillis())
-                }
+            }
+        }
+
+        // 6) PACE (комбо «обычная»): тот же корректировщик, что на WORK — темп сразу, не ждать 500 м
+        // PACE (combo normal block): same corrector as WORK — pace feedback before the 500 m checkpoint
+        if (isPaceSegment && seg.targetPaceSecPerKm != null && isPaceCorrectorEnabled()) {
+            val segDistM = totalDistM - segmentStartDistanceM
+            val remainM = (seg.distanceKm!! * 1000.0) - segDistM
+            // Тишина на хвосте блока (~80 м ≈ 20–30 с бега), как remainingSec > 20 у WORK.
+            if (remainM > 80.0) {
+                maybeSpeakPaceCorrector(
+                    targetPaceSecPerKm = seg.targetPaceSecPerKm,
+                    elapsedSec = elapsedSec,
+                    conditionLabel = "обычный блок",
+                )
             }
         }
 
@@ -1903,23 +1991,53 @@ class WorkoutForegroundService : Service() {
     }
 
     override fun onDestroy() {
+        writeLog("APP_EXIT_SERVICE: onDestroy begin isRunning=$isRunning isPaused=$isPaused pendingTts=$pendingTtsUtterances locationCallback=${locationCallback != null}")
         super.onDestroy()
+        writeLog("APP_EXIT_SERVICE: onDestroy after super")
+        serviceScope.coroutineContext.cancel()
+        writeLog("APP_EXIT_SERVICE: serviceScope cancelled")
         locationCallback?.let {
             try {
                 fusedLocationClient.removeLocationUpdates(it)
-            } catch (_: Exception) {
+                writeLog("APP_EXIT_SERVICE: removeLocationUpdates success in onDestroy")
+            } catch (e: Exception) {
+                writeLog("APP_EXIT_SERVICE_ERROR: removeLocationUpdates in onDestroy failed: ${e.javaClass.simpleName}: ${e.message}")
+                android.util.Log.e("WorkoutForegroundService", "removeLocationUpdates in onDestroy failed", e)
             }
         }
-        sensorManager.unregisterListener(stepListener)
+        try {
+            sensorManager.unregisterListener(stepListener)
+            writeLog("APP_EXIT_SERVICE: stepListener unregistered")
+        } catch (e: Exception) {
+            writeLog("APP_EXIT_SERVICE_ERROR: unregisterListener failed: ${e.javaClass.simpleName}: ${e.message}")
+            android.util.Log.e("WorkoutForegroundService", "unregisterListener failed", e)
+        }
         stopTicking()
+        writeLog("APP_EXIT_SERVICE: stopTicking done")
         closeGpxLog()
-        if (wakeLock.isHeld) wakeLock.release()
-        if (::ttsWakeLock.isInitialized && ttsWakeLock.isHeld) ttsWakeLock.release()
+        writeLog("APP_EXIT_SERVICE: closeGpxLog done")
+        if (wakeLock.isHeld) {
+            wakeLock.release()
+            writeLog("APP_EXIT_SERVICE: wakeLock released")
+        } else {
+            writeLog("APP_EXIT_SERVICE: wakeLock already released")
+        }
+        if (::ttsWakeLock.isInitialized && ttsWakeLock.isHeld) {
+            ttsWakeLock.release()
+            writeLog("APP_EXIT_SERVICE: ttsWakeLock released")
+        } else {
+            writeLog("APP_EXIT_SERVICE: ttsWakeLock already released or not initialized")
+        }
         pendingTtsUtterances = 0
         try {
+            writeLog("APP_EXIT_SERVICE: textToSpeech.shutdown begin")
             textToSpeech.shutdown()
-        } catch (_: Exception) {
+            writeLog("APP_EXIT_SERVICE: textToSpeech.shutdown end")
+        } catch (e: Exception) {
+            writeLog("APP_EXIT_SERVICE_ERROR: textToSpeech.shutdown failed: ${e.javaClass.simpleName}: ${e.message}")
+            android.util.Log.e("WorkoutForegroundService", "textToSpeech.shutdown failed", e)
         }
+        writeLog("APP_EXIT_SERVICE: onDestroy end")
     }
 
 

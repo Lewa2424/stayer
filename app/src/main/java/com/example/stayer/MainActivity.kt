@@ -70,6 +70,9 @@ class MainActivity : AppCompatActivity() {
     private var isTimerRunning = false
     private var isPaused = false
     private var timerRunnable: Runnable? = null
+    private var isStartCountdownRunning = false
+    private var startCountdownRunnable: Runnable? = null
+    private val startCountdownSeconds = 10
     // Источник истины для времени — сервис. Храним последнее значение для сохранения истории/отладки.
     private var lastElapsedMsFromService: Long = 0L
     private var previousLatitude: Double? = null
@@ -143,6 +146,82 @@ class MainActivity : AppCompatActivity() {
     private fun startWorkoutService() {
         stopPreStartLocationUpdates()
         WorkoutForegroundService.startOrResume(this)
+    }
+
+    /**
+     * Озвучивает короткую фразу для предстартового отсчета.
+     * Speaks a short phrase for the pre-start countdown.
+     */
+    private fun speakStartCountdown(text: String) {
+        try {
+            textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "start_countdown_${System.currentTimeMillis()}")
+        } catch (_: Exception) {
+        }
+    }
+
+    /**
+     * Запускает голосовой отсчет перед первым стартом тренировки.
+     * Starts a spoken countdown before the first workout start.
+     */
+    private fun startWorkoutCountdown() {
+        if (isStartCountdownRunning) return
+
+        isStartCountdownRunning = true
+        writeLog("USER_ACTION: Start countdown initiated")
+        Toast.makeText(this, "Старт через $startCountdownSeconds секунд", Toast.LENGTH_SHORT).show()
+
+        fun tick(secondsLeft: Int) {
+            if (!isStartCountdownRunning) return
+
+            if (secondsLeft > 0) {
+                speakStartCountdown(secondsLeft.toString())
+                startCountdownRunnable = Runnable {
+                    tick(secondsLeft - 1)
+                }.also { handler.postDelayed(it, 1000L) }
+                return
+            }
+
+            speakStartCountdown("Старт")
+            isStartCountdownRunning = false
+            startCountdownRunnable = null
+            beginWorkoutStart()
+        }
+
+        tick(startCountdownSeconds)
+    }
+
+    /**
+     * Отменяет предстартовый отсчет, если он идет.
+     * Cancels the pre-start countdown when it is active.
+     */
+    private fun cancelWorkoutCountdown() {
+        isStartCountdownRunning = false
+        startCountdownRunnable?.let { handler.removeCallbacks(it) }
+        startCountdownRunnable = null
+    }
+
+    /**
+     * Выполняет фактический запуск тренировки после отсчета.
+     * Performs the actual workout start after countdown.
+     */
+    private fun beginWorkoutStart() {
+        isTimerRunning = true
+        isPaused = false
+        startWorkoutService()
+
+        if (pausedTime > 0) {
+            totalPausedDuration += System.currentTimeMillis() - pausedTime
+            pausedTime = 0
+            writeLog("WORKOUT: Resumed after pause, totalPausedDuration=${totalPausedDuration}ms")
+        } else if (startTime == 0L) {
+            startTime = System.currentTimeMillis()
+            totalPausedDuration = 0
+            lastPaceCheckDistance = 0f
+            writeLog("=== Workout started ===")
+            writeLog("Start time: ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(startTime))}")
+        } else {
+            writeLog("WORKOUT: Resuming after autopause (Service manages timing)")
+        }
     }
 
     private fun checkNotificationPermissionIfNeeded() {
@@ -402,16 +481,33 @@ class MainActivity : AppCompatActivity() {
 
     private fun stopPreStartLocationUpdates() {
         preStartLocationCallback?.let {
-            fusedLocationClient.removeLocationUpdates(it)
-            preStartLocationCallback = null
-            writeLog("GPS_STATUS: Stopped pre-start location updates")
+            writeLog("APP_EXIT: stopPreStartLocationUpdates begin")
+            try {
+                fusedLocationClient.removeLocationUpdates(it)
+                writeLog("GPS_STATUS: Stopped pre-start location updates")
+            } catch (e: Exception) {
+                writeLog("APP_EXIT_ERROR: stopPreStartLocationUpdates failed: ${e.javaClass.simpleName}: ${e.message}")
+                Log.e("MainActivity", "stopPreStartLocationUpdates failed", e)
+            } finally {
+                preStartLocationCallback = null
+            }
         }
     }
 
     private fun handlePrimaryAction() {
         if (!isTimerRunning || isPaused) {
             // Запуск тренировки или возобновление после паузы
+            if (isStartCountdownRunning) {
+                writeLog("USER_ACTION: Start ignored - countdown already running")
+                return
+            }
             writeLog("USER_ACTION: Start pressed - ${if (isPaused) "resuming" else "starting"} workout")
+            if (isPaused || startTime != 0L) {
+                beginWorkoutStart()
+                return
+            }
+            startWorkoutCountdown()
+            return
             
             // ВАЖНО: Не полагаемся на локальный pausedTime для определения режима
             // Источник истины - состояние Service (isPaused из broadcast)
@@ -451,6 +547,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun stopAndResetWorkout() {
+        cancelWorkoutCountdown()
         writeLog("USER_ACTION: Long press - stopping and resetting workout")
         writeLog("WORKOUT_FINISH_REQUESTED")
         
@@ -515,10 +612,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onPause() {
+        writeLog("APP_EXIT: MainActivity.onPause begin isFinishing=$isFinishing isChangingConfigurations=$isChangingConfigurations uiIsRunning=$uiIsRunning uiIsPaused=$uiIsPaused countdown=$isStartCountdownRunning")
         super.onPause()
         stopPreStartLocationUpdates()
         // ВАЖНО: не останавливаем трекинг тут.
         // На экране-off Activity уходит в onPause, и раньше это полностью убивало GPS.
+        writeLog("APP_EXIT: MainActivity.onPause end")
     }
 
     override fun onResume() {
@@ -811,25 +910,28 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onStop() {
-        writeLog("ACTIVITY_ON_STOP: begin unregister receivers")
+        writeLog("APP_EXIT: MainActivity.onStop begin isFinishing=$isFinishing isChangingConfigurations=$isChangingConfigurations workoutReceiver=${workoutUpdateReceiver != null} snapshotReceiver=${finalSnapshotReceiver != null}")
         workoutUpdateReceiver?.let {
             try {
                 unregisterReceiver(it)
-                writeLog("ACTIVITY_ON_STOP: workoutUpdateReceiver unregistered")
-            } catch (_: Exception) {
-                writeLog("ACTIVITY_ON_STOP: workoutUpdateReceiver unregister skipped")
+                writeLog("APP_EXIT: workoutUpdateReceiver unregistered")
+            } catch (e: Exception) {
+                writeLog("APP_EXIT_ERROR: workoutUpdateReceiver unregister failed: ${e.javaClass.simpleName}: ${e.message}")
+                Log.e("MainActivity", "workoutUpdateReceiver unregister failed", e)
             }
         }
         finalSnapshotReceiver?.let {
             try {
                 unregisterReceiver(it)
-                writeLog("ACTIVITY_ON_STOP: finalSnapshotReceiver unregistered")
-            } catch (_: Exception) {
-                writeLog("ACTIVITY_ON_STOP: finalSnapshotReceiver unregister skipped")
+                writeLog("APP_EXIT: finalSnapshotReceiver unregistered")
+            } catch (e: Exception) {
+                writeLog("APP_EXIT_ERROR: finalSnapshotReceiver unregister failed: ${e.javaClass.simpleName}: ${e.message}")
+                Log.e("MainActivity", "finalSnapshotReceiver unregister failed", e)
             }
         }
-        writeLog("ACTIVITY_ON_STOP: end")
+        writeLog("APP_EXIT: MainActivity.onStop before super")
         super.onStop()
+        writeLog("APP_EXIT: MainActivity.onStop end")
     }
 
     /**
@@ -841,11 +943,13 @@ class MainActivity : AppCompatActivity() {
         isLongPress = true
         isActive = false
         isTimerRunning = false
+        isStartCountdownRunning = false
         isPaused = false
         pausedTime = 0
         totalPausedDuration = 0
         handler.removeCallbacksAndMessages(null)
         timerRunnable?.let { handler.removeCallbacks(it) }
+        startCountdownRunnable?.let { handler.removeCallbacks(it) }
 
         // Сброс значений для дистанции и шагомера
         totalDistance = 0f
@@ -864,21 +968,28 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        writeLog("APP_EXIT: MainActivity.onDestroy begin isFinishing=$isFinishing isChangingConfigurations=$isChangingConfigurations uiIsRunning=$uiIsRunning uiIsPaused=$uiIsPaused")
+        writeLog("APP_EXIT: MainActivity.onDestroy cancelWorkoutCountdown begin")
+        cancelWorkoutCountdown()
+        writeLog("APP_EXIT: MainActivity.onDestroy cancelWorkoutCountdown end")
         super.onDestroy()
-        writeLog("ACTIVITY_ON_DESTROY: after super")
-        writeLog("ACTIVITY_ON_DESTROY: shutting down MainActivity TTS")
+        writeLog("APP_EXIT: MainActivity.onDestroy after super")
+        writeLog("APP_EXIT: MainActivity.onDestroy textToSpeech.shutdown begin")
         textToSpeech.shutdown()
+        writeLog("APP_EXIT: MainActivity.onDestroy textToSpeech.shutdown end")
         val intent = Intent(this, TTSBackgroundService::class.java).apply {
             action = "STOP"
         }
-        writeLog("ACTIVITY_ON_DESTROY: sending STOP to TTSBackgroundService")
+        writeLog("APP_EXIT: MainActivity.onDestroy sending STOP to TTSBackgroundService")
         try {
             startService(intent)
-            writeLog("ACTIVITY_ON_DESTROY: STOP sent to TTSBackgroundService")
+            writeLog("APP_EXIT: MainActivity.onDestroy STOP sent to TTSBackgroundService")
         } catch (e: Exception) {
-            writeLog("ACTIVITY_ON_DESTROY: failed to stop TTSBackgroundService: ${e.javaClass.simpleName}: ${e.message}")
+            writeLog("APP_EXIT_ERROR: MainActivity.onDestroy failed to stop TTSBackgroundService: ${e.javaClass.simpleName}: ${e.message}")
+            Log.e("MainActivity", "Failed to stop TTSBackgroundService", e)
             throw e
         }
+        writeLog("APP_EXIT: MainActivity.onDestroy end")
     }
 
 

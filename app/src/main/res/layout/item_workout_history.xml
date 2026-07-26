@@ -8,8 +8,9 @@
     android:layout_marginHorizontal="8dp"
     android:layout_marginTop="4dp"
     android:layout_marginBottom="4dp"
-    app:cardCornerRadius="12dp"
-    app:cardElevation="2dp"
+    app:cardBackgroundColor="@color/sport_card_white"
+    app:cardCornerRadius="24dp"
+    app:cardElevation="6dp"
     app:cardUseCompatPadding="true">
 
     <LinearLayout
@@ -29,7 +30,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="16dp"
-                android:textColor="#757575"
+                android:textColor="@color/sport_soft_text"
                 android:textSize="14sp"
                 app:layout_constraintEnd_toStartOf="@+id/history_delete"
                 app:layout_constraintStart_toStartOf="parent"
@@ -42,7 +43,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:layout_marginEnd="16dp"
-                android:textColor="#212121"
+                android:textColor="@color/sport_deep_blue"
                 android:textSize="18sp"
                 android:textStyle="bold"
                 app:layout_constraintEnd_toStartOf="@+id/history_expand_icon"
@@ -59,7 +60,7 @@
                 app:layout_constraintBottom_toBottomOf="@id/history_target"
                 app:layout_constraintEnd_toStartOf="@+id/history_delete"
                 app:layout_constraintTop_toTopOf="@id/history_target"
-                app:tint="#757575" />
+                app:tint="@color/sport_soft_text" />
 
             <ImageButton
                 android:id="@+id/history_delete"
@@ -71,7 +72,7 @@
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintTop_toTopOf="parent"
-                app:tint="#D32F2F" />
+                app:tint="@color/sport_energy_orange" />
 
         </androidx.constraintlayout.widget.ConstraintLayout>
 
@@ -79,7 +80,7 @@
             android:id="@+id/history_details_layout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="#FAFAFA"
+            android:background="@color/sport_card_detail"
             android:orientation="vertical"
             android:paddingHorizontal="16dp"
             android:paddingBottom="16dp"
@@ -90,7 +91,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
                 android:layout_marginBottom="12dp"
-                android:background="#E0E0E0" />
+                android:background="@color/sport_soft_stroke" />
 
             <LinearLayout
                 android:id="@+id/history_summary_container"

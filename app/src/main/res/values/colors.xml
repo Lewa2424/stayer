@@ -21,4 +21,15 @@
     <color name="medal_inner_top">#9880D1</color>
     <color name="medal_inner_bottom">#7755BD</color>
     <color name="medal_shadow">#336E4BAE</color>
+
+    <!-- Sport light palette -->
+    <color name="sport_light_bg">#F8F9FA</color>
+    <color name="sport_card_white">#FFFFFFFF</color>
+    <color name="sport_electric_blue">#0052FF</color>
+    <color name="sport_energy_orange">#FF6B00</color>
+    <color name="sport_solar_yellow">#FFD84D</color>
+    <color name="sport_deep_blue">#163A70</color>
+    <color name="sport_soft_text">#5F6F85</color>
+    <color name="sport_soft_stroke">#D9E6F5</color>
+    <color name="sport_card_detail">#EDF4FF</color>
 </resources>

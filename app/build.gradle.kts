@@ -1,9 +1,8 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.kapt")
 }
-
-apply(plugin = "kotlin-kapt") // Подключаем kapt для Room
 
 android {
     namespace = "com.example.stayer"
@@ -13,8 +12,8 @@ android {
         applicationId = "com.example.stayer"
         minSdk = 28
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 370
+        versionName = "3.7.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -27,7 +26,7 @@ android {
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                "proguard-rules.pro",
             )
         }
     }
@@ -59,6 +58,7 @@ dependencies {
     implementation(libs.kotlin.stdlib)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel)
     implementation(libs.androidx.activity.compose)
     implementation("androidx.health.connect:connect-client:1.1.0-alpha11")
     implementation(platform(libs.androidx.compose.bom))
@@ -66,12 +66,16 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
-    // Icons for Compose (History/Timer/Distance/Pace etc.)
     implementation("androidx.compose.material:material-icons-extended")
-    // Required for Theme.Material3.* resources used by AndroidManifest/theme XML
     implementation("com.google.android.material:material:1.12.0")
     implementation(libs.androidx.recyclerview)
-    implementation (libs.gson)
+    implementation(libs.androidx.room.ktx)
+    implementation(libs.androidx.room.runtime)
+    kapt(libs.androidx.room.compiler)
+    implementation(libs.gson)
+    implementation("org.osmdroid:osmdroid-android:6.1.20")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

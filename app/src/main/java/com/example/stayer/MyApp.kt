@@ -2,6 +2,7 @@ package com.example.stayer
 
 import android.app.Application
 import android.util.Log
+import com.example.stayer.pathnet.data.OsmdroidInitializer
 import java.io.File
 import java.io.FileWriter
 import java.io.PrintWriter
@@ -14,6 +15,7 @@ class MyApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        OsmdroidInitializer.init(this)
         installCrashLogger()
     }
 

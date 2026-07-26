@@ -15,6 +15,10 @@ import android.media.AudioManager
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import androidx.core.app.NotificationCompat
+import java.io.File
+import java.io.FileWriter
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 class TTSBackgroundService : Service() {
@@ -27,6 +31,7 @@ class TTSBackgroundService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        writeExitLog("APP_EXIT_TTS: onCreate begin")
         createNotificationChannel()
         
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
@@ -56,6 +61,7 @@ class TTSBackgroundService : Service() {
         }
         
         startForeground(NOTIFICATION_ID, createNotification())
+        writeExitLog("APP_EXIT_TTS: onCreate end")
     }
     
     // Настройка женского голоса
@@ -141,11 +147,16 @@ class TTSBackgroundService : Service() {
                 })
             }
             "STOP" -> {
+                writeExitLog("APP_EXIT_TTS: STOP action begin wakeLockHeld=${wakeLock.isHeld}")
                 textToSpeech.stop()
+                writeExitLog("APP_EXIT_TTS: textToSpeech.stop done")
                 abandonAudioFocus()
+                writeExitLog("APP_EXIT_TTS: abandonAudioFocus done")
                 if (wakeLock.isHeld) {
                     wakeLock.release()
+                    writeExitLog("APP_EXIT_TTS: wakeLock released from STOP")
                 }
+                writeExitLog("APP_EXIT_TTS: stopSelf called")
                 stopSelf()
             }
         }
@@ -235,10 +246,31 @@ class TTSBackgroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        writeExitLog("APP_EXIT_TTS: onDestroy begin wakeLockHeld=${wakeLock.isHeld}")
         super.onDestroy()
-        textToSpeech.shutdown()
+        try {
+            writeExitLog("APP_EXIT_TTS: textToSpeech.shutdown begin")
+            textToSpeech.shutdown()
+            writeExitLog("APP_EXIT_TTS: textToSpeech.shutdown end")
+        } catch (e: Exception) {
+            writeExitLog("APP_EXIT_TTS_ERROR: textToSpeech.shutdown failed: ${e.javaClass.simpleName}: ${e.message}")
+            android.util.Log.e("TTSBackgroundService", "textToSpeech.shutdown failed", e)
+        }
         if (wakeLock.isHeld) {
             wakeLock.release()
+            writeExitLog("APP_EXIT_TTS: wakeLock released in onDestroy")
+        }
+        writeExitLog("APP_EXIT_TTS: onDestroy end")
+    }
+
+    private fun writeExitLog(message: String) {
+        try {
+            val logFile = File(getExternalFilesDir(null), "stayer_log.txt")
+            val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault()).format(Date())
+            FileWriter(logFile, true).use { writer ->
+                writer.append("[$timestamp] $message\n")
+            }
+        } catch (_: Exception) {
         }
     }
 } 

@@ -2,6 +2,7 @@ package com.example.stayer
 
 import android.content.Context
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.transition.AutoTransition
 import android.transition.TransitionManager
 import android.view.LayoutInflater
@@ -11,6 +12,7 @@ import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.widget.AppCompatButton
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.recyclerview.widget.RecyclerView
@@ -25,10 +27,10 @@ class WorkoutHistoryAdapter(
     private val workoutHistoryList: MutableList<WorkoutHistory>
 ) : RecyclerView.Adapter<WorkoutHistoryAdapter.WorkoutViewHolder>() {
 
-    private val primaryTextColor = Color.parseColor("#424242")
-    private val secondaryTextColor = Color.parseColor("#616161")
-    private val positiveDeltaColor = Color.parseColor("#2E7D32")
-    private val negativeDeltaColor = Color.parseColor("#C62828")
+    private val primaryTextColor = Color.parseColor("#163A70")
+    private val secondaryTextColor = Color.parseColor("#5F6F85")
+    private val positiveDeltaColor = Color.parseColor("#0052FF")
+    private val negativeDeltaColor = Color.parseColor("#FF6B00")
 
     private fun formatDistance(distanceKm: Float): String {
         return String.format(Locale.getDefault(), "%.2f км", distanceKm)
@@ -163,9 +165,18 @@ class WorkoutHistoryAdapter(
             deleteButton.setOnClickListener {
                 val position = bindingAdapterPosition
                 if (position == RecyclerView.NO_POSITION) return@setOnClickListener
-                workoutHistoryList.removeAt(position)
-                notifyItemRemoved(position)
-                saveHistoryList(workoutHistoryList)
+                AlertDialog.Builder(context)
+                    .setTitle("Удалить тренировку?")
+                    .setMessage("Запись будет удалена из истории без возможности восстановления.")
+                    .setNegativeButton("Отмена", null)
+                    .setPositiveButton("Удалить") { _, _ ->
+                        val currentPosition = bindingAdapterPosition
+                        if (currentPosition == RecyclerView.NO_POSITION) return@setPositiveButton
+                        workoutHistoryList.removeAt(currentPosition)
+                        notifyItemRemoved(currentPosition)
+                        saveHistoryList(workoutHistoryList)
+                    }
+                    .show()
             }
         }
 
@@ -456,6 +467,19 @@ class WorkoutHistoryAdapter(
                     topMargin = dp(12)
                 }
                 isAllCaps = false
+                minHeight = 0
+                minimumHeight = 0
+                textSize = 13f
+                setTextColor(primaryTextColor)
+                elevation = dp(4).toFloat()
+                stateListAnimator = null
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.RECTANGLE
+                    cornerRadius = dp(18).toFloat()
+                    setColor(Color.WHITE)
+                    setStroke(dp(2), Color.parseColor("#D9E6F5"))
+                }
+                setPadding(dp(18), dp(10), dp(18), dp(10))
             }
         }
 

@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.RadioGroup
@@ -28,6 +29,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.example.stayer.modes.free.FREE_RUN_MODE
@@ -75,6 +78,8 @@ class GoalActivity : AppCompatActivity() {
         // Location type: 0=stadium (smoothing ON), 1=park (smoothing OFF)
         const val LOCATION_TYPE = "LOCATION_TYPE"
         const val PACE_CORRECTOR_ENABLED = "PACE_CORRECTOR_ENABLED"
+        // Route following: lock GPS onto the user-drawn path network.
+        const val ROUTE_FOLLOW_ENABLED = "ROUTE_FOLLOW_ENABLED"
 
     }
 
@@ -92,8 +97,10 @@ class GoalActivity : AppCompatActivity() {
         // Анимированный градиентный текст для "Режим тренировки"
         val cvWorkoutModeLabel = findViewById<ComposeView>(R.id.cvWorkoutModeLabel)
         cvWorkoutModeLabel.setContent {
-            val primaryPurple = Color(0xFF6E4BAE)
-            val accentOrange = Color(0xFFFF8600)
+            val sportBlue = Color(0xFF0052FF)
+            val sportOrange = Color(0xFFFF6B00)
+            val sportYellow = Color(0xFFFFD84D)
+            val sportFont = FontFamily(Font(R.font.arista_pro))
             
             val infiniteTransition = rememberInfiniteTransition(label = "GradientText")
             val offset by infiniteTransition.animateFloat(
@@ -107,7 +114,7 @@ class GoalActivity : AppCompatActivity() {
             )
 
             val brush = Brush.linearGradient(
-                colors = listOf(primaryPurple, accentOrange, primaryPurple),
+                colors = listOf(sportBlue, sportOrange, sportYellow, sportBlue),
                 start = Offset(offset, offset),
                 end = Offset(offset + 500f, offset + 500f),
                 tileMode = TileMode.Repeated
@@ -118,6 +125,7 @@ class GoalActivity : AppCompatActivity() {
                 style = TextStyle(
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
+                    fontFamily = sportFont,
                     brush = brush
                 ),
                 modifier = Modifier.fillMaxWidth()
@@ -127,6 +135,14 @@ class GoalActivity : AppCompatActivity() {
         // Настройка Spinner для режима тренировки
         val prefs = getSharedPreferences(PREFS_GOALS, MODE_PRIVATE)
         val spWorkoutMode = findViewById<Spinner>(R.id.spWorkoutMode)
+        val workoutModeAdapter = ArrayAdapter.createFromResource(
+            this,
+            R.array.workout_modes,
+            R.layout.item_sport_spinner
+        ).apply {
+            setDropDownViewResource(R.layout.item_sport_spinner_dropdown)
+        }
+        spWorkoutMode.adapter = workoutModeAdapter
 
         // Ссылки на блоки режимов
         val blockNormal = findViewById<View>(R.id.blockNormal)
@@ -301,6 +317,14 @@ class GoalActivity : AppCompatActivity() {
         // === Логика для Combo mode ===
         val rvComboBlocks = findViewById<RecyclerView>(R.id.rvComboBlocks)
         val spComboBlockType = findViewById<Spinner>(R.id.spComboBlockType)
+        val comboBlockTypeAdapter = ArrayAdapter.createFromResource(
+            this,
+            R.array.combo_block_types,
+            R.layout.item_sport_spinner
+        ).apply {
+            setDropDownViewResource(R.layout.item_sport_spinner_dropdown)
+        }
+        spComboBlockType.adapter = comboBlockTypeAdapter
         val btnAddComboBlock = findViewById<Button>(R.id.btnAddComboBlock)
         val btnSaveCombo = findViewById<Button>(R.id.btnSaveCombo)
         val tvComboSummary = findViewById<TextView>(R.id.tvComboSummary)
@@ -413,6 +437,15 @@ class GoalActivity : AppCompatActivity() {
         swPaceCorrector.isChecked = prefs.getBoolean(PACE_CORRECTOR_ENABLED, true)
         swPaceCorrector.setOnCheckedChangeListener { _, isChecked ->
             prefs.edit().putBoolean(PACE_CORRECTOR_ENABLED, isChecked).apply()
+        }
+
+        val swRouteFollow = findViewById<SwitchCompat>(R.id.swRouteFollow)
+        swRouteFollow.isChecked = prefs.getBoolean(ROUTE_FOLLOW_ENABLED, false)
+        swRouteFollow.setOnCheckedChangeListener { _, isChecked ->
+            prefs.edit().putBoolean(ROUTE_FOLLOW_ENABLED, isChecked).apply()
+        }
+        findViewById<Button>(R.id.btnOpenRouteEditor).setOnClickListener {
+            startActivity(Intent(this, com.example.stayer.pathnet.ui.RouteMapActivity::class.java))
         }
 
         // Обработчик нажатия на кнопку "Назад"

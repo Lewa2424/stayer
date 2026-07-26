@@ -9,14 +9,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -36,16 +35,27 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.stayer.R
+import com.example.stayer.analytics.AnalyticsMetric
 import com.example.stayer.analytics.AnalyticsMode
 import com.example.stayer.analytics.AnalyticsPeriod
-import com.example.stayer.analytics.AnalyticsMetric
 import com.example.stayer.analytics.WorkoutAnalyticsEngine
 import com.example.stayer.analytics.WorkoutAnalyticsReport
 import com.example.stayer.history.WorkoutHistoryRepository
+
+private val AnalyticsBg = Color(0xFFF8F9FA)
+private val AnalyticsCard = Color(0xFFFFFFFF)
+private val AnalyticsBlue = Color(0xFF0052FF)
+private val AnalyticsOrange = Color(0xFFFF6B00)
+private val AnalyticsYellow = Color(0xFFFFD84D)
+private val AnalyticsText = Color(0xFF163A70)
+private val AnalyticsSubtle = Color(0xFF5F6F85)
+private val AnalyticsFont = FontFamily(Font(R.font.arista_pro))
 
 /**
  * Экран аналитики с выбором режима и периода.
@@ -70,44 +80,42 @@ fun AnalyticsScreen(
         )
     }
 
-    val background = remember {
-        Brush.verticalGradient(
-            listOf(
-                Color(0xFFF1ECF8),
-                Color(0xFFF8F5FC)
-            )
-        )
-    }
-
     Scaffold(
+        containerColor = AnalyticsBg,
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
                     Text(
                         text = "Аналитика",
-                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                        color = AnalyticsText,
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = AnalyticsFont
+                        )
                     )
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                            contentDescription = "Назад"
+                            contentDescription = "Назад",
+                            tint = AnalyticsBlue
                         )
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = Color.Transparent,
-                    scrolledContainerColor = Color.Transparent
+                    containerColor = AnalyticsBg,
+                    scrolledContainerColor = AnalyticsBg,
+                    navigationIconContentColor = AnalyticsBlue,
+                    titleContentColor = AnalyticsText
                 )
             )
         },
-        containerColor = Color.Transparent
     ) { innerPadding ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(background)
+                .background(AnalyticsBg)
                 .padding(innerPadding)
         ) {
             Column(
@@ -170,8 +178,9 @@ private fun <T> ChoiceSection(
     label: (T) -> String
 ) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F1FA)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        colors = CardDefaults.cardColors(containerColor = AnalyticsCard),
+        elevation = CardDefaults.cardElevation(defaultElevation = 10.dp),
+        shape = MaterialTheme.shapes.large
     ) {
         Column(
             modifier = Modifier
@@ -181,7 +190,8 @@ private fun <T> ChoiceSection(
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = AnalyticsText
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -193,7 +203,11 @@ private fun <T> ChoiceSection(
                         Button(
                             onClick = { onSelect(value) },
                             modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp)
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = AnalyticsOrange,
+                                contentColor = Color.White
+                            )
                         ) {
                             Text(text = label(value), maxLines = 1)
                         }
@@ -201,7 +215,8 @@ private fun <T> ChoiceSection(
                         OutlinedButton(
                             onClick = { onSelect(value) },
                             modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp)
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = AnalyticsBlue)
                         ) {
                             Text(text = label(value), maxLines = 1)
                         }
@@ -219,8 +234,9 @@ private fun <T> ChoiceSection(
 @Composable
 private fun AnalyticsSummaryCard(report: WorkoutAnalyticsReport) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F1FA)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        colors = CardDefaults.cardColors(containerColor = AnalyticsCard),
+        elevation = CardDefaults.cardElevation(defaultElevation = 10.dp),
+        shape = MaterialTheme.shapes.large
     ) {
         Column(
             modifier = Modifier
@@ -230,18 +246,42 @@ private fun AnalyticsSummaryCard(report: WorkoutAnalyticsReport) {
         ) {
             Text(
                 text = report.mode.title,
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = AnalyticsText
             )
             Text(
                 text = "Период: ${report.period.title}",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = AnalyticsSubtle
             )
-            Text(text = "Тренировок: ${report.workoutsCount}")
-            Text(text = "Тестовых записей: ${report.testWorkoutsCount}")
-            Text(text = "Суммарная дистанция: ${String.format(java.util.Locale.getDefault(), "%.2f км", report.totalDistanceKm)}")
-            Text(text = "Суммарное время: ${formatClock(report.totalTimeSec)}")
+            SummaryLine("Тренировок", report.workoutsCount.toString(), AnalyticsBlue)
+            SummaryLine("Тестовых записей", report.testWorkoutsCount.toString(), AnalyticsOrange)
+            SummaryLine("Суммарная дистанция", String.format(java.util.Locale.getDefault(), "%.2f км", report.totalDistanceKm), AnalyticsBlue)
+            SummaryLine("Суммарное время", formatClock(report.totalTimeSec), AnalyticsOrange)
         }
+    }
+}
+
+@Composable
+private fun SummaryLine(
+    label: String,
+    value: String,
+    valueColor: Color
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = label, color = AnalyticsSubtle)
+        Text(
+            text = value,
+            color = valueColor,
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontWeight = FontWeight.Bold,
+                fontFamily = AnalyticsFont
+            )
+        )
     }
 }
 
@@ -252,8 +292,9 @@ private fun AnalyticsSummaryCard(report: WorkoutAnalyticsReport) {
 @Composable
 private fun MetricsCard(metrics: List<AnalyticsMetric>) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F1FA)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        colors = CardDefaults.cardColors(containerColor = AnalyticsCard),
+        elevation = CardDefaults.cardElevation(defaultElevation = 10.dp),
+        shape = MaterialTheme.shapes.large
     ) {
         Column(
             modifier = Modifier
@@ -263,18 +304,20 @@ private fun MetricsCard(metrics: List<AnalyticsMetric>) {
         ) {
             Text(
                 text = "Сводка",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = AnalyticsText
             )
             metrics.forEach { metric ->
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
                         text = metric.label,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = AnalyticsSubtle
                     )
                     Text(
                         text = metric.value,
-                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold)
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                        color = AnalyticsText
                     )
                 }
             }
@@ -292,8 +335,9 @@ private fun InsightsCard(
     lines: List<String>
 ) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F1FA)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        colors = CardDefaults.cardColors(containerColor = AnalyticsCard),
+        elevation = CardDefaults.cardElevation(defaultElevation = 10.dp),
+        shape = MaterialTheme.shapes.large
     ) {
         Column(
             modifier = Modifier
@@ -303,12 +347,14 @@ private fun InsightsCard(
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = AnalyticsText
             )
             lines.forEach { line ->
                 Text(
                     text = "• $line",
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = AnalyticsSubtle
                 )
             }
         }
@@ -324,7 +370,8 @@ private fun NoticeCard(message: String) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
-        color = Color(0xFFFFF3E0)
+        color = AnalyticsCard,
+        shadowElevation = 10.dp
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -332,12 +379,25 @@ private fun NoticeCard(message: String) {
         ) {
             Text(
                 text = "Недостаточно данных",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = AnalyticsText
             )
             Text(
                 text = message,
-                style = MaterialTheme.typography.bodyMedium
+                style = MaterialTheme.typography.bodyMedium,
+                color = AnalyticsSubtle
             )
+            Surface(
+                color = AnalyticsYellow.copy(alpha = 0.35f),
+                shape = MaterialTheme.shapes.medium
+            ) {
+                Text(
+                    text = "Добавьте ещё тренировок для стабильных выводов.",
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                    color = AnalyticsText,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
         }
     }
 }

@@ -63,6 +63,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.ui.draw.shadow
 
@@ -78,8 +79,14 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -87,12 +94,16 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -114,6 +125,152 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+private val LightBg = Color(0xFFF8F9FA)
+private val CardWhite = Color(0xFFFFFFFF)
+private val ElectricBlue = Color(0xFF0052FF)
+private val EnergyOrange = Color(0xFFFF6B00)
+private val SolarYellow = Color(0xFFFFD84D)
+private val PulseBlue = Color(0xFFB8D9FF)
+private val DeepBlue = Color(0xFF163A70)
+private val SoftText = Color(0xFF5F6F85)
+private val SportDisplayFont = FontFamily(Font(R.font.arista_pro))
+
+/**
+ * Рисует едва заметную анимированную линию кардиограммы на фоне.
+ * Draws a subtle animated cardiogram line behind the main content.
+ */
+@Composable
+private fun PulseBackground(modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "pulse_background")
+    val shift by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 12000, easing = LinearEasing),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Restart
+        ),
+        label = "pulse_shift"
+    )
+    val pulseAlpha by transition.animateFloat(
+        initialValue = 0.14f,
+        targetValue = 0.28f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2400, easing = LinearEasing),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+        ),
+        label = "pulse_alpha"
+    )
+
+    Canvas(modifier = modifier) {
+        val strokeWidth = 2.dp.toPx()
+        val baseline = size.height * 0.36f
+        val waveWidth = size.width * 0.6f
+        val startX = -waveWidth + (size.width + waveWidth) * shift
+
+        fun buildPulsePath(originX: Float): Path {
+            return Path().apply {
+                moveTo(originX, baseline)
+                lineTo(originX + waveWidth * 0.18f, baseline)
+                lineTo(originX + waveWidth * 0.26f, baseline - size.height * 0.018f)
+                lineTo(originX + waveWidth * 0.34f, baseline + size.height * 0.025f)
+                lineTo(originX + waveWidth * 0.40f, baseline - size.height * 0.082f)
+                lineTo(originX + waveWidth * 0.47f, baseline + size.height * 0.11f)
+                lineTo(originX + waveWidth * 0.56f, baseline - size.height * 0.038f)
+                lineTo(originX + waveWidth * 0.68f, baseline)
+                lineTo(originX + waveWidth, baseline)
+            }
+        }
+
+        drawPath(
+            path = buildPulsePath(startX),
+            color = PulseBlue.copy(alpha = pulseAlpha),
+            style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+        )
+        drawPath(
+            path = buildPulsePath(startX - waveWidth - size.width * 0.08f),
+            color = PulseBlue.copy(alpha = pulseAlpha * 0.72f),
+            style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+        )
+    }
+}
+
+/**
+ * Белая круглая кнопка с анимированным спортивным контуром.
+ * White circular action button with an animated sport-inspired border.
+ */
+@Composable
+private fun ActionButtonChrome(
+    modifier: Modifier = Modifier,
+    holdProgress: Float,
+    content: @Composable () -> Unit
+) {
+    val transition = rememberInfiniteTransition(label = "action_button_ring")
+    val rotation by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 5000, easing = LinearEasing),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Restart
+        ),
+        label = "action_button_rotation"
+    )
+    val trackBrush = remember {
+        Brush.sweepGradient(
+            listOf(ElectricBlue, EnergyOrange, SolarYellow, ElectricBlue)
+        )
+    }
+
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.matchParentSize()) {
+            val strokeWidth = 12.dp.toPx()
+            val diameter = size.minDimension - strokeWidth
+            val topLeft = Offset(
+                x = (size.width - diameter) / 2f,
+                y = (size.height - diameter) / 2f
+            )
+            val arcSize = Size(diameter, diameter)
+
+            rotate(rotation) {
+                drawArc(
+                    brush = trackBrush,
+                    startAngle = -90f,
+                    sweepAngle = 360f,
+                    useCenter = false,
+                    topLeft = topLeft,
+                    size = arcSize,
+                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                )
+            }
+
+            if (holdProgress > 0f) {
+                drawArc(
+                    color = EnergyOrange,
+                    startAngle = -90f,
+                    sweepAngle = holdProgress * 360f,
+                    useCenter = false,
+                    topLeft = topLeft,
+                    size = arcSize,
+                    style = Stroke(width = strokeWidth + 1.dp.toPx(), cap = StrokeCap.Round)
+                )
+            }
+        }
+
+        Surface(
+            shape = CircleShape,
+            color = CardWhite,
+            shadowElevation = 16.dp,
+            modifier = Modifier.size(156.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                content()
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -147,94 +304,109 @@ fun MainScreen(
     var showInfoSheet by remember { mutableStateOf(false) }
     val infoSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    // ==== Подкомпоненты ====
-
-@Composable
-fun GpsStatusBadge(gpsStatus: MainActivity.GpsStatus) {
-    val (color, text, icon) = when (gpsStatus) {
-        MainActivity.GpsStatus.READY -> Triple(
-            Color(0xFF4CAF50), // Зеленый
-            "GPS готов",
-            Icons.Default.LocationOn
-        )
-        MainActivity.GpsStatus.POOR -> Triple(
-            Color(0xFFFFB300), // Желтый
-            "Уточняем сигнал...",
-            Icons.Default.LocationOn
-        )
-        MainActivity.GpsStatus.SEARCHING -> Triple(
-            Color(0xFF9E9E9E), // Серый/Красный
-            "Поиск спутников...",
-            Icons.Default.LocationOn
-        )
-    }
-
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center,
-        modifier = Modifier
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-            .height(32.dp)
-            .background(color.copy(alpha = 0.1f), shape = RoundedCornerShape(16.dp))
-            .padding(horizontal = 12.dp)
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = color,
-            modifier = Modifier.size(16.dp)
-        )
-        Spacer(modifier = Modifier.width(6.dp))
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelMedium.copy(
-                fontWeight = FontWeight.Bold,
-                color = color
+    @Composable
+    fun GpsStatusBadge(gpsStatus: MainActivity.GpsStatus) {
+        val (accent, text, iconTint) = when (gpsStatus) {
+            MainActivity.GpsStatus.READY -> Triple(
+                ElectricBlue,
+                "GPS готов",
+                ElectricBlue
             )
-        )
-    }
-}
-    // ==== Soft UI Цвета ====
-    val softBgTop = Color(0xFFF1ECF8)
-    val softBgBottom = Color(0xFFF8F5FC)
-    val softAccentMain = Color(0xFF6E4BAE)
-
-    val brush = remember { Brush.verticalGradient(listOf(softBgTop, softBgBottom)) }
-
-    Scaffold(
-        containerColor = Color.Transparent,
-        topBar = {
-            MainTopBar(
-                title = appTitle
+            MainActivity.GpsStatus.POOR -> Triple(
+                SolarYellow,
+                "Уточняем сигнал...",
+                SolarYellow
             )
-        },
-        bottomBar = {
-            StatsPanel(
-                elapsedMs = elapsedMs,
-                distanceKm = distanceKm,
-                paceText = paceText,
-                goalValueText = goalValueText,
-                goalSupportingText = goalSupportingText,
-                onGoalClick = onGoalClick,
-                intervalActive = intervalActive,
-                intervalType = intervalType,
-                intervalRemainingSec = intervalRemainingSec,
-                intervalIndex = intervalIndex,
-                intervalTotal = intervalTotal,
-                intervalTargetPaceSecPerKm = intervalTargetPaceSecPerKm,
-                isRunning = isRunning,
-                workoutMode = workoutMode,
-                scenarioPreview = scenarioPreview,
+            MainActivity.GpsStatus.SEARCHING -> Triple(
+                SolarYellow,
+                "Поиск спутников...",
+                SolarYellow
             )
         }
-    ) { inner ->
+
+        Surface(
+            color = CardWhite,
+            shape = RoundedCornerShape(22.dp),
+            shadowElevation = 10.dp,
+            modifier = Modifier.height(44.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier.padding(horizontal = 18.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.LocationOn,
+                    contentDescription = null,
+                    tint = iconTint,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = accent
+                    )
+                )
+            }
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Image(
+            painter = painterResource(id = R.drawable.main_screen_bg),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
+        )
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(brush)
-                .padding(inner)
-                .padding(contentPadding)
-        ) {
+                .background(LightBg.copy(alpha = 0.5f))
+        )
+
+        PulseBackground(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp)
+        )
+
+        Scaffold(
+            containerColor = Color.Transparent,
+            topBar = {
+                SportMainTopBar(
+                    title = appTitle
+                )
+            },
+            bottomBar = {
+                SportStatsPanel(
+                    elapsedMs = elapsedMs,
+                    distanceKm = distanceKm,
+                    paceText = paceText,
+                    goalValueText = goalValueText,
+                    goalSupportingText = goalSupportingText,
+                    onGoalClick = onGoalClick,
+                    intervalActive = intervalActive,
+                    intervalType = intervalType,
+                    intervalRemainingSec = intervalRemainingSec,
+                    intervalIndex = intervalIndex,
+                    intervalTotal = intervalTotal,
+                    intervalTargetPaceSecPerKm = intervalTargetPaceSecPerKm,
+                    isRunning = isRunning,
+                    workoutMode = workoutMode,
+                    scenarioPreview = scenarioPreview,
+                )
+            }
+        ) { inner ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(inner)
+                    .padding(contentPadding)
+            ) {
+
             // Активные кнопки мельче, расположены колонной сверху вниз (с правой стороны)
             Column(
                 modifier = Modifier
@@ -251,7 +423,7 @@ fun GpsStatusBadge(gpsStatus: MainActivity.GpsStatus) {
                         imageVector = Icons.Outlined.Calculate,
                         contentDescription = "Калькулятор темпа",
                         modifier = Modifier.size(24.dp),
-                        tint = softAccentMain
+                        tint = ElectricBlue
                     )
                 }
             }
@@ -271,7 +443,7 @@ fun GpsStatusBadge(gpsStatus: MainActivity.GpsStatus) {
                         imageVector = Icons.Outlined.Info,
                         contentDescription = stringResource(R.string.info_button_description),
                         modifier = Modifier.size(24.dp),
-                        tint = softAccentMain
+                        tint = ElectricBlue
                     )
                 }
                 IconButton(
@@ -282,7 +454,7 @@ fun GpsStatusBadge(gpsStatus: MainActivity.GpsStatus) {
                         imageVector = Icons.Outlined.Settings,
                         contentDescription = "Настройки",
                         modifier = Modifier.size(24.dp),
-                        tint = softAccentMain
+                        tint = ElectricBlue
                     )
                 }
                 IconButton(
@@ -293,7 +465,7 @@ fun GpsStatusBadge(gpsStatus: MainActivity.GpsStatus) {
                         imageVector = Icons.Outlined.History,
                         contentDescription = stringResource(R.string.history_button_description),
                         modifier = Modifier.size(24.dp),
-                        tint = softAccentMain
+                        tint = ElectricBlue
                     )
                 }
                 IconButton(
@@ -304,7 +476,7 @@ fun GpsStatusBadge(gpsStatus: MainActivity.GpsStatus) {
                         imageVector = Icons.Outlined.QueryStats,
                         contentDescription = "Аналитика",
                         modifier = Modifier.size(24.dp),
-                        tint = softAccentMain
+                        tint = ElectricBlue
                     )
                 }
             }
@@ -327,8 +499,8 @@ fun GpsStatusBadge(gpsStatus: MainActivity.GpsStatus) {
                 Spacer(modifier = Modifier.height(12.dp))
 
                 // --- Главная кнопка Старт / Пауза ---
-                Box(modifier = Modifier.offset(y = (-20).dp)) {
-                    BigActionButton(
+                Box(modifier = Modifier.offset(y = 20.dp)) {
+                    SportBigActionButton(
                         isRunning = isRunning,
                         isPaused = isPaused,
                         onClick = onPrimaryClick,
@@ -343,18 +515,459 @@ fun GpsStatusBadge(gpsStatus: MainActivity.GpsStatus) {
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(horizontal = 24.dp, vertical = 12.dp),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 12.sp,
+                    shadow = Shadow(
+                        color = Color(0x99000000),
+                        offset = Offset(0f, 2f),
+                        blurRadius = 8f
+                    )
+                ),
+                color = Color.White,
                 textAlign = TextAlign.Center
             )
         }
-        if (showInfoSheet) {
-            ModalBottomSheet(
-                onDismissRequest = { showInfoSheet = false },
-                sheetState = infoSheetState
+            if (showInfoSheet) {
+                ModalBottomSheet(
+                    onDismissRequest = { showInfoSheet = false },
+                    sheetState = infoSheetState
+                ) {
+                    InfoBottomSheetContent(
+                        onDismiss = { showInfoSheet = false }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SportMainTopBar(
+    title: String
+) {
+    androidx.compose.material3.CenterAlignedTopAppBar(
+        title = {
+            Text(
+                text = title,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = DeepBlue,
+                style = MaterialTheme.typography.displaySmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = SportDisplayFont
+                )
+            )
+        },
+        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+            containerColor = Color.Transparent,
+            scrolledContainerColor = Color.Transparent
+        )
+    )
+}
+
+/**
+ * Отдельная светлая CTA-кнопка для стартового экрана.
+ * Dedicated light CTA button for the main workout screen.
+ */
+@Composable
+private fun SportBigActionButton(
+    isRunning: Boolean,
+    isPaused: Boolean,
+    onClick: () -> Unit,
+    onLongPress: () -> Unit,
+) {
+    val label = if (isRunning && !isPaused) "Пауза" else "Старт"
+
+    var pressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.95f else 1f,
+        label = "sport_main_btn_scale"
+    )
+    val holdProgress by animateFloatAsState(
+        targetValue = if (pressed) 1f else 0f,
+        animationSpec = tween(durationMillis = 800, easing = LinearEasing),
+        label = "sport_main_btn_hold_progress"
+    )
+    val latestOnClick by rememberUpdatedState(onClick)
+    val latestOnLongPress by rememberUpdatedState(onLongPress)
+    val haptic = LocalHapticFeedback.current
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(208.dp),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        Box(
+            modifier = Modifier
+                .size(184.dp)
+                .scale(scale)
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onPress = {
+                            pressed = true
+                            var longPressFired = false
+                            val job = CoroutineScope(Dispatchers.Main).launch {
+                                delay(800)
+                                longPressFired = true
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                latestOnLongPress()
+                            }
+                            try {
+                                val released = tryAwaitRelease()
+                                if (released && !longPressFired) {
+                                    latestOnClick()
+                                }
+                            } finally {
+                                job.cancel()
+                                pressed = false
+                            }
+                        }
+                    )
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            ActionButtonChrome(
+                holdProgress = holdProgress,
+                modifier = Modifier.fillMaxSize()
             ) {
-                InfoBottomSheetContent(
-                    onDismiss = { showInfoSheet = false }
+                Column(
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    RunnerAvatar(
+                        isRunning = isRunning,
+                        isPaused = isPaused,
+                        primaryTint = DeepBlue
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.headlineSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = SportDisplayFont
+                        ),
+                        color = DeepBlue
+                    )
+                }
+            }
+        }
+        Text(
+            text = if (pressed) "Удерживай для завершения" else "Нажми или удерживай",
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .offset(y = 8.dp),
+            style = MaterialTheme.typography.labelMedium.copy(
+                fontSize = 12.sp,
+                shadow = Shadow(
+                    color = Color(0x99000000),
+                    offset = Offset(0f, 2f),
+                    blurRadius = 8f
+                )
+            ),
+            color = Color.White
+        )
+    }
+}
+
+@Composable
+private fun SportStatsPanel(
+    elapsedMs: Long,
+    distanceKm: Float,
+    paceText: String,
+    goalValueText: String,
+    goalSupportingText: String?,
+    onGoalClick: () -> Unit,
+    intervalActive: Boolean = false,
+    intervalType: String = "",
+    intervalRemainingSec: Int = 0,
+    intervalIndex: Int = 0,
+    intervalTotal: Int = 0,
+    intervalTargetPaceSecPerKm: Int? = null,
+    isRunning: Boolean = false,
+    workoutMode: Int = 0,
+    scenarioPreview: String = "",
+) {
+    Card(
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
+        ) {
+            if (!intervalActive) {
+                val showPreview = !isRunning && workoutMode > 0 && scenarioPreview.isNotBlank()
+
+                if (showPreview) {
+                    val previewTransition = rememberInfiniteTransition(label = "sport_preview_gradient")
+                    val previewOffset by previewTransition.animateFloat(
+                        initialValue = 0f,
+                        targetValue = 1000f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(4000, easing = LinearEasing),
+                            repeatMode = androidx.compose.animation.core.RepeatMode.Restart
+                        ),
+                        label = "sport_preview_gradient_offset"
+                    )
+                    val previewBrush = Brush.linearGradient(
+                        colors = listOf(ElectricBlue, EnergyOrange, SolarYellow, ElectricBlue),
+                        start = Offset(previewOffset, 0f),
+                        end = Offset(previewOffset + 600f, 300f),
+                        tileMode = TileMode.Repeated
+                    )
+                    val modeLabel = when (workoutMode) {
+                        1 -> "\u26A1 Интервальная"
+                        2 -> "\uD83C\uDFAF Комбинированная"
+                        4 -> "\uD83C\uDFC1 Забег"
+                        else -> ""
+                    }
+                    val scrollState = rememberScrollState()
+
+                    Surface(
+                        shape = RoundedCornerShape(24.dp),
+                        color = CardWhite,
+                        shadowElevation = 10.dp,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .padding(16.dp)
+                                .heightIn(max = 160.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = modeLabel,
+                                style = MaterialTheme.typography.labelLarge.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    brush = previewBrush
+                                )
+                            )
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f, fill = false)
+                                    .verticalScroll(scrollState)
+                            ) {
+                                Text(
+                                    text = scenarioPreview,
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = FontWeight.Medium,
+                                        fontFamily = FontFamily.Monospace,
+                                        lineHeight = 20.sp
+                                    ),
+                                    color = DeepBlue
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        SportStatTile(
+                            icon = Icons.Outlined.Timer,
+                            value = formatHms(elapsedMs),
+                            label = "Время",
+                            valueColor = EnergyOrange,
+                            modifier = Modifier.weight(1f)
+                        )
+                        SportStatTile(
+                            icon = Icons.AutoMirrored.Outlined.DirectionsRun,
+                            value = formatKm(distanceKm),
+                            label = "Дистанция",
+                            valueColor = ElectricBlue,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    SportStatTile(
+                        icon = Icons.Outlined.Speed,
+                        value = paceText,
+                        label = "Темп",
+                        valueColor = DeepBlue,
+                        modifier = Modifier.weight(1f)
+                    )
+                    SportStatTile(
+                        icon = Icons.Outlined.Flag,
+                        value = goalValueText,
+                        label = "Цель",
+                        supporting = goalSupportingText,
+                        valueColor = DeepBlue,
+                        showChevron = true,
+                        actionLabel = "Изменить",
+                        onClick = onGoalClick,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            } else {
+                val phase = intervalTypeRu(intervalType)
+                val remain = formatMmSs(intervalRemainingSec)
+                val series = if (intervalTotal > 0) "$intervalIndex/$intervalTotal" else "—"
+                val targetPace = intervalTargetPaceSecPerKm?.let { formatPaceOnly(it) }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    SportStatTile(
+                        icon = Icons.Outlined.Timer,
+                        value = formatHms(elapsedMs),
+                        label = "Время",
+                        valueColor = EnergyOrange,
+                        modifier = Modifier.weight(1f)
+                    )
+                    SportStatTile(
+                        icon = Icons.AutoMirrored.Outlined.DirectionsRun,
+                        value = phase,
+                        label = "Фаза",
+                        supporting = "Серия $series",
+                        valueColor = ElectricBlue,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    SportStatTile(
+                        icon = Icons.Outlined.Speed,
+                        value = remain,
+                        label = "Осталось",
+                        supporting = if (targetPace != null) "Цель $targetPace" else null,
+                        valueColor = EnergyOrange,
+                        modifier = Modifier.weight(1f)
+                    )
+                    SportStatTile(
+                        icon = Icons.Outlined.Flag,
+                        value = "Интервалы",
+                        label = "Цель",
+                        valueColor = DeepBlue,
+                        showChevron = true,
+                        actionLabel = "Изменить",
+                        onClick = onGoalClick,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Светлая карточка метрики для спортивного дашборда.
+ * Light metric card for the sports dashboard.
+ */
+@Composable
+private fun SportStatTile(
+    icon: ImageVector,
+    value: String,
+    label: String,
+    modifier: Modifier = Modifier,
+    supporting: String? = null,
+    valueColor: Color = DeepBlue,
+    showChevron: Boolean = false,
+    actionLabel: String? = null,
+    onClick: (() -> Unit)? = null,
+) {
+    val compactValue = value.length > 8
+    Surface(
+        shape = RoundedCornerShape(24.dp),
+        color = CardWhite,
+        shadowElevation = 10.dp,
+        modifier = modifier.then(
+            if (onClick != null) {
+                Modifier.clickable { onClick() }
+            } else {
+                Modifier
+            }
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = ElectricBlue
+                )
+                if (showChevron) {
+                    Icon(
+                        imageVector = Icons.Outlined.ChevronRight,
+                        contentDescription = null,
+                        tint = SoftText,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = SportDisplayFont,
+                    fontSize = if (compactValue) 15.sp else 24.sp,
+                    lineHeight = if (compactValue) 19.sp else 28.sp
+                ),
+                color = valueColor
+            )
+
+            if (!supporting.isNullOrBlank()) {
+                Text(
+                    text = supporting,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = SoftText
+                )
+            }
+
+            if (!actionLabel.isNullOrBlank()) {
+                val gradientTransition = rememberInfiniteTransition(label = "sport_goal_gradient")
+                val gradientOffset by gradientTransition.animateFloat(
+                    initialValue = 0f,
+                    targetValue = 1000f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(3000, easing = LinearEasing),
+                        repeatMode = androidx.compose.animation.core.RepeatMode.Restart
+                    ),
+                    label = "sport_goal_gradient_offset"
+                )
+                val gradientBrush = Brush.linearGradient(
+                    colors = listOf(ElectricBlue, EnergyOrange, SolarYellow, ElectricBlue),
+                    start = Offset(gradientOffset, gradientOffset),
+                    end = Offset(gradientOffset + 500f, gradientOffset + 500f),
+                    tileMode = TileMode.Repeated
+                )
+
+                Text(
+                    text = "$label • $actionLabel",
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        brush = gradientBrush
+                    )
+                )
+            } else {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                    color = SoftText
                 )
             }
         }
@@ -366,21 +979,22 @@ fun GpsStatusBadge(gpsStatus: MainActivity.GpsStatus) {
 private fun MainTopBar(
     title: String
 ) {
-    val softTextPrimary = Color(0xFF2F243D)
-    
     androidx.compose.material3.CenterAlignedTopAppBar(
         title = {
             Text(
                 text = title,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                color = softTextPrimary,
-                style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Bold)
+                color = DeepBlue,
+                style = MaterialTheme.typography.displaySmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = SportDisplayFont
+                )
             )
         },
         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-            containerColor = Color.Transparent,
-            scrolledContainerColor = Color.Transparent
+            containerColor = LightBg,
+            scrolledContainerColor = LightBg
         )
     )
 }
