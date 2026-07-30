@@ -296,14 +296,104 @@ class RouteMapViewModel(
     fun saveGraph() {
         PathNetLogger.info("Save graph requested: edges=${_state.value.graph.edges.size}")
         scope.launch {
-            repository.saveGraph(_state.value.graph)
+            val before = _state.value.graph
+            val (merged, mergeCount) = com.example.stayer.pathnet.domain.PathGraphTopology
+                .mergeCoincidentDegree1Endpoints(before)
+            val remaining = com.example.stayer.pathnet.domain.PathGraphTopology
+                .findCoincidentDisconnectedEndpoints(merged)
+            repository.saveGraph(merged)
             repository.saveImportedGraph(_state.value.importedGraph)
             repository.saveLoadedAreas(_state.value.loadedAreas)
-            _state.value = _state.value.copy(infoMessage = "Сеть сохранена")
+            val message = buildString {
+                append("Сеть сохранена")
+                if (mergeCount > 0) append(" • склеено концов: $mergeCount")
+                if (remaining.isNotEmpty()) {
+                    append(" • несоединённых совпадений: ${remaining.size}")
+                }
+            }
+            _state.value = _state.value.copy(
+                graph = merged,
+                totalLengthMeters = PathLengthCalculator.calculateGraphLength(merged),
+                infoMessage = message,
+            )
             PathNetLogger.info(
-                "Graph saved: edges=${_state.value.graph.edges.size}, importedWays=${_state.value.importedGraph.ways.size}, areas=${_state.value.loadedAreas.size}",
+                "Graph saved: edges=${merged.edges.size}, merges=$mergeCount, " +
+                    "coincidentDisconnected=${remaining.size}, " +
+                    "importedWays=${_state.value.importedGraph.ways.size}, areas=${_state.value.loadedAreas.size}",
             )
         }
+    }
+
+    /**
+     * Экспортирует сохранённый граф и runtime-сеть в файлы приложения (для offline replay).
+     * Exports the stored graph and runtime network into app files (for offline replay).
+     */
+    fun exportNetworkForReplay() {
+        scope.launch {
+            try {
+                val graph = _state.value.graph
+                val runtime = withContext(Dispatchers.IO) {
+                    com.example.stayer.pathnet.domain.RailNetworkBuilder.build(graph)
+                }
+                val dir = java.io.File(getApplication<Application>().filesDir, "pathnet_export")
+                if (!dir.exists()) dir.mkdirs()
+                val stamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US)
+                    .format(java.util.Date())
+                val graphFile = java.io.File(dir, "path_graph_$stamp.json")
+                val railFile = java.io.File(dir, "rail_network_$stamp.json")
+                withContext(Dispatchers.IO) {
+                    graphFile.writeText(exportPathGraphJson(graph))
+                    railFile.writeText(exportRailNetworkJson(runtime))
+                }
+                val stats = com.example.stayer.pathnet.domain.PathGraphTopology.analyze(graph, runtime)
+                PathNetLogger.info("Network exported: ${graphFile.absolutePath}, ${railFile.absolutePath}, ${stats.toLogLine()}")
+                _state.value = _state.value.copy(
+                    infoMessage = "Экспорт: ${graphFile.name} / ${railFile.name}",
+                )
+            } catch (error: Exception) {
+                PathNetLogger.error("Network export failed: ${error.message}", error)
+                _state.value = _state.value.copy(infoMessage = "Экспорт не удался: ${error.message}")
+            }
+        }
+    }
+
+    private fun exportPathGraphJson(graph: com.example.stayer.pathnet.model.PathGraph): String {
+        val gson = com.google.gson.GsonBuilder().setPrettyPrinting().create()
+        return gson.toJson(
+            mapOf(
+                "nodes" to graph.nodes.mapValues { (_, n) ->
+                    mapOf("id" to n.id, "lat" to n.point.lat, "lon" to n.point.lon)
+                },
+                "edges" to graph.edges.mapValues { (_, e) ->
+                    mapOf(
+                        "id" to e.id,
+                        "startNodeId" to e.startNodeId,
+                        "endNodeId" to e.endNodeId,
+                        "source" to e.source.name,
+                        "lengthMeters" to e.lengthMeters,
+                        "geometry" to e.geometry.map { mapOf("lat" to it.lat, "lon" to it.lon) },
+                    )
+                },
+            ),
+        )
+    }
+
+    private fun exportRailNetworkJson(network: com.example.stayer.pathnet.domain.RailNetwork): String {
+        val gson = com.google.gson.GsonBuilder().setPrettyPrinting().create()
+        return gson.toJson(
+            mapOf(
+                "edges" to network.edges.map { edge ->
+                    mapOf(
+                        "edgeId" to edge.edgeId,
+                        "startNodeId" to edge.startNodeId,
+                        "endNodeId" to edge.endNodeId,
+                        "lengthMeters" to edge.lengthMeters,
+                        "points" to edge.points.map { mapOf("lat" to it.lat, "lon" to it.lon) },
+                        "cumulativeMeters" to edge.cumulativeMeters,
+                    )
+                },
+            ),
+        )
     }
 
     /**
@@ -386,7 +476,11 @@ class RouteMapViewModel(
                             startNodeId = continuationAnchorId,
                             endPoint = point,
                             importedGraph = currentState.importedGraph,
-                            preferAttachEndToGraph = false,
+                            // EXTEND тоже привязывает конец — иначе визуально замкнутый контур
+                            // остаётся топологически разомкнутым (разные nodeId).
+                            // EXTEND also attaches the end — otherwise a visually closed loop
+                            // stays topologically open (different nodeIds).
+                            preferAttachEndToGraph = true,
                         ),
                     )
                     return
@@ -418,7 +512,8 @@ class RouteMapViewModel(
                 startNodeId = pendingId,
                 endPoint = point,
                 importedGraph = currentState.importedGraph,
-                preferAttachEndToGraph = currentState.mode == PathEditorMode.ADD_BRANCH,
+                preferAttachEndToGraph = currentState.mode == PathEditorMode.ADD_BRANCH ||
+                    currentState.mode == PathEditorMode.EXTEND,
             ),
         )
     }

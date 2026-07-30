@@ -50,6 +50,7 @@ fun RouteMapScreen(
     onSave: () -> Unit,
     onClearAll: () -> Unit,
     onFitGraph: () -> Unit,
+    onExportNetwork: () -> Unit = {},
 ) {
     var showActionsMenu by remember { mutableStateOf(false) }
 
@@ -137,6 +138,13 @@ fun RouteMapScreen(
                                     text = { Text("Показать всю сеть") },
                                     onClick = {
                                         onFitGraph()
+                                        showActionsMenu = false
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Экспорт сети (JSON)") },
+                                    onClick = {
+                                        onExportNetwork()
                                         showActionsMenu = false
                                     },
                                 )

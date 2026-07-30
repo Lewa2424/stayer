@@ -4,10 +4,10 @@ package com.example.stayer.pathnet.domain
  * Считает продвижение вперёд по сети от текущей позиции до целевого ребра.
  * Computes forward progress through the network from the current pose to a target edge.
  *
- * Нужен, чтобы на коротких кусках не терять метры: credit = остаток текущего +
- * полные промежуточные рёбра + вход в целевое, а не только «один сосед».
- * Needed so short edges do not steal meters: credit = remainder on current +
- * full intermediate edges + entry into target, not just "one neighbor".
+ * [maxPathMeters] — бюджет поиска пути (search), не жёсткий cap начисления.
+ * Начисление ограничивает вызывающий (RailMatcher transition budget).
+ * [maxPathMeters] is the path-search budget, not the credit cap.
+ * The caller (RailMatcher) limits credited meters separately.
  */
 object RailForwardPath {
     data class Pose(
@@ -34,6 +34,7 @@ object RailForwardPath {
         toSMeters: Double,
         maxPathMeters: Double,
         maxHops: Int = 12,
+        minDirectionLockMeters: Double = 0.0,
     ): Arrival? {
         val edges = network.edges
         if (edges.isEmpty()) return null
@@ -42,14 +43,12 @@ object RailForwardPath {
         if (maxPathMeters < 0.0) return null
 
         if (from.edgeIndex == toEdgeIndex) {
-            return sameEdgeArrival(fromEdge, from, toSMeters)
+            return sameEdgeArrival(fromEdge, from, toSMeters, minDirectionLockMeters)
         }
 
         val towardEnd = if (from.directionKnown) {
             from.travelingTowardEnd
         } else {
-            // Без известного направления берём кратчайший выход с текущего ребра.
-            // Without a known direction, leave the current edge via the shorter exit.
             val toStart = from.sMeters
             val toEnd = fromEdge.lengthMeters - from.sMeters
             toEnd <= toStart
@@ -60,6 +59,8 @@ object RailForwardPath {
         } else {
             from.sMeters.coerceAtLeast(0.0)
         }
+        // Остаток текущего ребра сам по себе не блокирует поиск при достаточном search-бюджете.
+        // Remaining length alone does not block search when the search budget is large enough.
         if (remainOnFrom > maxPathMeters) return null
 
         val startNode = if (towardEnd) fromEdge.endNodeId else fromEdge.startNodeId
@@ -111,9 +112,7 @@ object RailForwardPath {
                     continue
                 }
 
-                // Полный проход промежуточного ребра к противоположному узлу.
-                // Full traversal of an intermediate edge to the opposite node.
-                if (edge.isClosed) continue // кольцо-одноребро обрабатывается same-edge веткой
+                if (edge.isClosed) continue
                 val exitNode = if (travelTowardEnd) edge.endNodeId else edge.startNodeId
                 if (exitNode == state.nodeId) continue
                 val nextCost = state.costMeters + edge.lengthMeters
@@ -136,17 +135,23 @@ object RailForwardPath {
         return bestArrival
     }
 
-    private fun sameEdgeArrival(
+    /**
+     * Same-edge arrival. Направление фиксируется только при |Δs| > [minDirectionLockMeters].
+     * Same-edge arrival. Direction locks only when |Δs| > [minDirectionLockMeters].
+     */
+    fun sameEdgeArrival(
         edge: RailEdge,
         from: Pose,
         toSMeters: Double,
+        minDirectionLockMeters: Double = 0.0,
     ): Arrival {
         if (!from.directionKnown) {
+            val absDelta = kotlin.math.abs(toSMeters - from.sMeters)
             val towardEnd = toSMeters >= from.sMeters
-            val known = toSMeters != from.sMeters
+            val known = absDelta > minDirectionLockMeters && absDelta > 1e-9
             return Arrival(
-                deltaMeters = kotlin.math.abs(toSMeters - from.sMeters),
-                travelingTowardEnd = towardEnd,
+                deltaMeters = absDelta,
+                travelingTowardEnd = if (known) towardEnd else from.travelingTowardEnd,
                 directionKnown = known,
             )
         }

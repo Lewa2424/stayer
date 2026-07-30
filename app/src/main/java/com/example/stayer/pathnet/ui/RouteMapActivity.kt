@@ -65,6 +65,10 @@ class RouteMapActivity : ComponentActivity() {
                         PathNetLogger.info("UI action: fit graph")
                         viewModel.requestFitGraph()
                     },
+                    onExportNetwork = {
+                        PathNetLogger.info("UI action: export network")
+                        viewModel.exportNetworkForReplay()
+                    },
                 )
             }
         }

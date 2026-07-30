@@ -1,6 +1,5 @@
 package com.example.stayer.pathnet.domain
 
-import android.location.Location
 import com.example.stayer.pathnet.model.GeoPoint
 
 /**
@@ -55,11 +54,9 @@ object PathGeometryProjector {
             lat = start.lat + (end.lat - start.lat) * clamped,
             lon = start.lon + (end.lon - start.lon) * clamped,
         )
-        val result = FloatArray(1)
-        Location.distanceBetween(point.lat, point.lon, projected.lat, projected.lon, result)
         return ProjectionResult(
             point = projected,
-            distanceMeters = result[0].toDouble(),
+            distanceMeters = GeoDistance.meters(point, projected),
             segmentIndex = segmentIndex,
             segmentFraction = clamped,
         )

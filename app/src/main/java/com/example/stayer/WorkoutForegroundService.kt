@@ -22,6 +22,7 @@ import android.os.IBinder
 import android.os.Looper
 import android.os.Handler
 import android.os.PowerManager
+import android.os.SystemClock
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import androidx.core.app.NotificationCompat
@@ -53,6 +54,7 @@ import com.example.stayer.modes.race.RaceSpeechFormatter
 import com.example.stayer.pathnet.data.PathNetworkRuntimeLoader
 import com.example.stayer.pathnet.data.RoomPathNetworkRepository
 import com.example.stayer.pathnet.data.local.PathNetDatabase
+import com.example.stayer.pathnet.diagnostics.RailTickJsonlLogger
 import com.example.stayer.pathnet.domain.RailMatcher
 import com.example.stayer.pathnet.model.GeoPoint
 import kotlinx.coroutines.*
@@ -62,6 +64,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -238,6 +241,11 @@ class WorkoutForegroundService : Service() {
     // GPX Logging state
     private var gpxWriter: FileWriter? = null
     private var gpxFile: File? = null
+    private val railTickLogger = RailTickJsonlLogger()
+    private var lastLocationType: Int = 0
+    private var lastGraphHash: String = ""
+    private var pathNetworkLoadJob: Job? = null
+    private val pathNetworkLoading = AtomicBoolean(false)
 
     private var lastPacerSpeechTimeMs: Long = 0L
 
@@ -366,12 +374,14 @@ class WorkoutForegroundService : Service() {
 
             // Apply location type: stadium=smoothing(3), park=no smoothing(1)
             val locationType = goalPrefs.getInt(GoalActivity.LOCATION_TYPE, 0)
+            lastLocationType = locationType
             smoother = LocationSmoother(windowSize = if (locationType == 1) 1 else 3)
             writeLog("SMOOTHER: windowSize=${if (locationType == 1) 1 else 3} (locationType=$locationType)")
 
             distanceArbiter.reset()
             railMatcher.reset()
             writeLog("ROUTE_FOLLOW: enabled=$routeFollowEnabled")
+            writeSessionHeader(locationType)
 
             if (activeWorkoutModeInt == RACE_MODE) {
                 val startRange = racePlan?.let { RaceProgressEvaluator.activeSegment(it, totalDistanceKm.toDouble()) }
@@ -554,22 +564,57 @@ class WorkoutForegroundService : Service() {
     }
 
     /**
-     * Обновляет рельсы маршрута для привязки GPS в фоне.
-     * Refreshes the rail paths used for GPS locking in the background.
+     * Обновляет рельсы маршрута для привязки GPS в фоне (один активный load).
+     * Refreshes the rail paths used for GPS locking (single active load).
      */
     private fun refreshPathRailRuntime() {
-        serviceScope.launch {
+        if (!pathNetworkLoading.compareAndSet(false, true)) {
+            writeLog("PATHNET: load already in progress — skipped duplicate")
+            return
+        }
+        pathNetworkLoadJob?.cancel()
+        pathNetworkLoadJob = serviceScope.launch {
             try {
-                val network = withContext(Dispatchers.IO) {
-                    pathRuntimeLoader.loadNetwork()
+                val loaded = withContext(Dispatchers.IO) {
+                    pathRuntimeLoader.loadNetworkWithStats()
                 }
-                railMatcher.updateNetwork(network)
-                writeLog("PATHNET: route network loaded, edges=${network.edges.size}")
+                railMatcher.updateNetwork(loaded.network)
+                lastGraphHash = loaded.stats.graphHash
+                writeLog("PATHNET: route network loaded, ${loaded.stats.toLogLine()}")
             } catch (error: Exception) {
                 railMatcher.updateNetwork(com.example.stayer.pathnet.domain.RailNetwork(emptyList()))
+                lastGraphHash = ""
                 writeLog("PATHNET: failed to load route network: ${error.message}")
+            } finally {
+                pathNetworkLoading.set(false)
             }
         }
+    }
+
+    /**
+     * Пишет заголовок сессии тренировки (версия, настройки, graphHash).
+     * Writes workout session header (version, settings, graphHash).
+     */
+    private fun writeSessionHeader(locationType: Int) {
+        val pInfo = try {
+            packageManager.getPackageInfo(packageName, 0)
+        } catch (_: Exception) {
+            null
+        }
+        val versionName = pInfo?.versionName ?: "?"
+        val versionCode = if (Build.VERSION.SDK_INT >= 28) {
+            pInfo?.longVersionCode?.toString() ?: "?"
+        } else {
+            @Suppress("DEPRECATION")
+            pInfo?.versionCode?.toString() ?: "?"
+        }
+        val smootherWindow = if (locationType == 1) 1 else 3
+        writeLog(
+            "SESSION: versionName=$versionName, versionCode=$versionCode, " +
+                "routeFollow=$routeFollowEnabled, smootherWindow=$smootherWindow, " +
+                "locationType=$locationType, graphHash=$lastGraphHash, " +
+                "startRealtimeNanos=${SystemClock.elapsedRealtimeNanos()}",
+        )
     }
 
     private fun startTicking() {
@@ -780,6 +825,15 @@ class WorkoutForegroundService : Service() {
         val prev = lastAcceptedRawLocation
         val smoothed = smoother.addAndGetSmoothed(location)
         val accuracyMeters = if (location.hasAccuracy()) location.accuracy else Float.MAX_VALUE
+        val lockedBefore = railMatcher.isLocked
+        val edgeBefore = railMatcher.currentEdgeId
+        val sBefore = railMatcher.currentSMeters
+        val directionBefore = when {
+            !railMatcher.isLocked -> "none"
+            !railMatcher.isDirectionKnown -> "unknown"
+            railMatcher.isTravelingTowardEnd -> "towardEnd"
+            else -> "towardStart"
+        }
 
         if (prev == null) {
             lastAcceptedRawLocation = location
@@ -787,6 +841,17 @@ class WorkoutForegroundService : Service() {
             lastSmoothedLocation = smoothed
             val firstTick = distanceArbiter.onFirstGpsPoint(GeoPoint(smoothed.latitude, smoothed.longitude))
             applyDistanceTick(firstTick)
+            logRailTick(
+                location = location,
+                smoothed = smoothed,
+                dtMs = 0.0,
+                rawDelta = 0.0,
+                lockedBefore = lockedBefore,
+                edgeBefore = edgeBefore,
+                sBefore = sBefore,
+                directionBefore = directionBefore,
+                tick = firstTick,
+            )
             paceCorrector.feedGpsPoint(
                 latDeg = firstTick.trackedPoint?.lat ?: smoothed.latitude,
                 lonDeg = firstTick.trackedPoint?.lon ?: smoothed.longitude,
@@ -799,21 +864,35 @@ class WorkoutForegroundService : Service() {
         logGpxPoint(location, rejectReason)
         val deltaTimeSec = ((location.elapsedRealtimeNanos - prev.elapsedRealtimeNanos) / 1_000_000_000.0)
         val smoothedPoint = GeoPoint(smoothed.latitude, smoothed.longitude)
+        // dt и rawDelta относятся к одному интервалу: accepted raw fix → текущий raw fix.
+        // dt and rawDelta use the same interval: accepted raw fix → current raw fix.
+        val rawDeltaM = prev.distanceTo(location).toDouble()
 
         val tick = if (rejectReason != null) {
-            distanceArbiter.onGpsRejected(smoothedPoint, deltaTimeSec, accuracyMeters)
+            distanceArbiter.onGpsRejected(smoothedPoint, deltaTimeSec, accuracyMeters, rawDeltaM)
         } else {
             lastAcceptedRawLocation = location
-            val prevSmoothed = lastSmoothedLocation
-            val rawDeltaM = if (prevSmoothed != null) {
-                prevSmoothed.distanceTo(smoothed).toDouble()
-            } else {
-                0.0
-            }
-            distanceArbiter.onGpsAccepted(smoothedPoint, rawDeltaM, deltaTimeSec, accuracyMeters)
+            distanceArbiter.onGpsAccepted(
+                smoothedPoint,
+                rawDeltaM,
+                deltaTimeSec,
+                accuracyMeters,
+                locationSpeedMps = if (location.hasSpeed()) location.speed.toDouble() else null,
+            )
         }
 
         applyDistanceTick(tick)
+        logRailTick(
+            location = location,
+            smoothed = smoothed,
+            dtMs = deltaTimeSec * 1000.0,
+            rawDelta = rawDeltaM,
+            lockedBefore = lockedBefore,
+            edgeBefore = edgeBefore,
+            sBefore = sBefore,
+            directionBefore = directionBefore,
+            tick = tick,
+        )
         val tracked = tick.trackedPoint ?: smoothedPoint
         paceCorrector.feedGpsPoint(
             latDeg = tracked.lat,
@@ -832,6 +911,38 @@ class WorkoutForegroundService : Service() {
         persistState()
         broadcastUpdate()
         updateNotification()
+    }
+
+    private fun logRailTick(
+        location: Location,
+        smoothed: Location,
+        dtMs: Double,
+        rawDelta: Double,
+        lockedBefore: Boolean,
+        edgeBefore: String?,
+        sBefore: Double,
+        directionBefore: String,
+        tick: DistanceTick,
+    ) {
+        if (!railTickLogger.isOpen) return
+        railTickLogger.logTick(
+            locationTimeMs = location.time,
+            elapsedRealtimeNanos = location.elapsedRealtimeNanos,
+            dtMs = dtMs,
+            rawLat = location.latitude,
+            rawLon = location.longitude,
+            smoothedLat = smoothed.latitude,
+            smoothedLon = smoothed.longitude,
+            accuracy = if (location.hasAccuracy()) location.accuracy else -1f,
+            locationSpeed = if (location.hasSpeed()) location.speed else -1f,
+            rawDelta = rawDelta,
+            lockedBefore = lockedBefore,
+            edgeBefore = edgeBefore,
+            sBefore = sBefore,
+            directionBefore = directionBefore,
+            tick = tick,
+            matcher = railMatcher,
+        )
     }
 
     /**
@@ -2058,6 +2169,16 @@ class WorkoutForegroundService : Service() {
                     writer.write("    <trkseg>\n")
                     writer.flush()
                 }
+                railTickLogger.open(dir, timestamp)
+                railTickLogger.writeSessionHeader(
+                    "{" +
+                        "\"type\":\"session\"," +
+                        "\"stamp\":\"$timestamp\"," +
+                        "\"routeFollow\":$routeFollowEnabled," +
+                        "\"locationType\":$lastLocationType," +
+                        "\"graphHash\":\"$lastGraphHash\"" +
+                        "}",
+                )
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -2096,6 +2217,7 @@ class WorkoutForegroundService : Service() {
         } finally {
             gpxWriter = null
             gpxFile = null
+            railTickLogger.close()
         }
     }
 
@@ -2110,10 +2232,17 @@ class WorkoutForegroundService : Service() {
             builder.append("      <trkpt lat=\"${location.latitude}\" lon=\"${location.longitude}\">\n")
             if (location.hasAltitude()) builder.append("        <ele>${location.altitude}</ele>\n")
             builder.append("        <time>$timeStr</time>\n")
+            val nanos = location.elapsedRealtimeNanos
             if (reason != null) {
-                builder.append("        <desc>REJECTED: $reason. Speed: ${location.speed}, Acc: ${location.accuracy}</desc>\n")
+                builder.append(
+                    "        <desc>REJECTED: $reason. Speed: ${location.speed}, Acc: ${location.accuracy}, " +
+                        "ElapsedNanos: $nanos</desc>\n",
+                )
             } else {
-                builder.append("        <desc>ACCEPTED. Speed: ${location.speed}, Acc: ${location.accuracy}</desc>\n")
+                builder.append(
+                    "        <desc>ACCEPTED. Speed: ${location.speed}, Acc: ${location.accuracy}, " +
+                        "ElapsedNanos: $nanos</desc>\n",
+                )
             }
             builder.append("      </trkpt>\n")
 
